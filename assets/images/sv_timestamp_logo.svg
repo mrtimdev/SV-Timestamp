@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#ffffff"/>
+  <circle cx="169" cy="250" r="146" fill="#ef1d28"/>
+  <path d="M55 323c27 45 75 75 130 75 41 0 79-16 106-42H156l-2 18h-16l5-50h148l-7 25c19-22 31-50 31-81 0-24-6-46-17-65H209c-17 0-30-13-30-30 0-7 2-14 7-20H280c-27-31-67-49-111-49-83 0-150 66-150 147 0 26 7 50 19 72z" fill="#ef1d28"/>
+  <g transform="translate(53 178)">
+    <rect x="0" y="18" width="157" height="104" rx="15" fill="#fff"/>
+    <path d="M41 18l10-16h54l11 16" fill="#fff"/>
+    <rect x="16" y="7" width="21" height="6" rx="3" fill="#fff"/>
+    <circle cx="79" cy="70" r="36" fill="#fff" stroke="#ef1d28" stroke-width="6"/>
+    <circle cx="79" cy="70" r="27" fill="#ef1d28"/>
+    <path d="M84 49c10 3 16 10 19 19" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="135" cy="37" r="7" fill="#ef1d28"/>
+  </g>
+  <text x="216" y="302" fill="#303c96" font-family="Arial, sans-serif" font-size="194" font-weight="900" letter-spacing="-20">SV</text>
+  <text x="154" y="372" fill="#303c96" stroke="#fff" stroke-width="12" paint-order="stroke" font-family="Arial, sans-serif" font-size="61" font-style="italic" font-weight="900">TIMESTAMP</text>
+</svg>
