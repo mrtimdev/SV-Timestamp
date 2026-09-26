@@ -24,6 +24,7 @@ class SettingsProvider extends ChangeNotifier {
       logoSize: prefs.getDouble('logoSize'),
       logoRadius: prefs.getDouble('logoRadius'),
       showLogo: prefs.getBool('showLogo'),
+      showGpsAccuracy: prefs.getBool('showGpsAccuracy'),
       showStreet: prefs.getBool('showStreet'),
       showProvince: prefs.getBool('showProvince'),
       showCommune: prefs.getBool('showCommune'),
@@ -34,11 +35,37 @@ class SettingsProvider extends ChangeNotifier {
       fontSize: prefs.getDouble('fontSize'),
       backgroundOpacity: prefs.getDouble('backgroundOpacity'),
       borderRadius: prefs.getDouble('borderRadius'),
+      watermarkScale: prefs.getDouble('watermarkScale'),
+      watermarkZoom: prefs.getDouble('watermarkZoom')?.clamp(.25, 3.0),
+      watermarkMargin: prefs.getDouble('watermarkMargin'),
+      manualQuarterTurns: prefs.getInt('manualQuarterTurns'),
+      normalizedX: prefs.getDouble('normalizedX'),
+      normalizedY: prefs.getDouble('normalizedY'),
+      template:
+          WatermarkTemplate.values[prefs.getInt('watermarkTemplate') ??
+              WatermarkTemplate.fieldReport.index],
       language: AppLanguage.values[prefs.getInt('language') ?? 0],
-      position: OverlayPosition.values[prefs.getInt('position') ?? 3],
-      themeMode: ThemeMode.values[prefs.getInt('themeMode') ?? 0],
+      position: OverlayPosition
+          .values[prefs.getInt('position') ?? OverlayPosition.bottomLeft.index],
+      themeMode:
+          ThemeMode.values[prefs.getInt('themeMode') ?? ThemeMode.light.index],
+      cameraRatio: CameraRatio
+          .values[prefs.getInt('cameraRatio') ?? CameraRatio.ratio3x4.index],
     );
+    // Upgrade the previous default once; preserve explicitly selected templates
+    // and all user text/logo choices. Later launches keep the chosen settings.
+    if (!(prefs.getBool('fieldReportDefaultApplied') ?? false)) {
+      if (!prefs.containsKey('watermarkTemplate') ||
+          settings.template == WatermarkTemplate.classic) {
+        await update(settings.withTemplate(WatermarkTemplate.fieldReport));
+      }
+      await prefs.setBool('fieldReportDefaultApplied', true);
+    }
   }
+
+  Future<void> updateNote(String value) => update(
+    settings.copyWith(customNote: value, showNote: value.trim().isNotEmpty),
+  );
 
   Future<void> update(AppSettings next) async {
     settings = next;
@@ -61,6 +88,7 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setDouble('logoSize', next.logoSize);
     await prefs.setDouble('logoRadius', next.logoRadius);
     await prefs.setBool('showLogo', next.showLogo);
+    await prefs.setBool('showGpsAccuracy', next.showGpsAccuracy);
     await prefs.setBool('showStreet', next.showStreet);
     await prefs.setBool('showProvince', next.showProvince);
     await prefs.setBool('showCommune', next.showCommune);
@@ -71,9 +99,17 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setDouble('fontSize', next.fontSize);
     await prefs.setDouble('backgroundOpacity', next.backgroundOpacity);
     await prefs.setDouble('borderRadius', next.borderRadius);
+    await prefs.setDouble('watermarkScale', next.watermarkScale);
+    await prefs.setDouble('watermarkZoom', next.watermarkZoom);
+    await prefs.setDouble('watermarkMargin', next.watermarkMargin);
+    await prefs.setInt('manualQuarterTurns', next.manualQuarterTurns);
+    await prefs.setDouble('normalizedX', next.normalizedX);
+    await prefs.setDouble('normalizedY', next.normalizedY);
+    await prefs.setInt('watermarkTemplate', next.template.index);
     await prefs.setInt('language', next.language.index);
     await prefs.setInt('position', next.position.index);
     await prefs.setInt('themeMode', next.themeMode.index);
+    await prefs.setInt('cameraRatio', next.cameraRatio.index);
   }
 
   Future<void> pickLogo() async {

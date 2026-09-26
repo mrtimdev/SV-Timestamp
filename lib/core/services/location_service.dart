@@ -25,6 +25,7 @@ class LocationService {
       var stamp = LocationStamp(
         latitude: position.latitude,
         longitude: position.longitude,
+        accuracy: position.accuracy,
       );
       try {
         await setLocaleIdentifier(localeIdentifier);
@@ -37,6 +38,7 @@ class LocationService {
           stamp = LocationStamp(
             latitude: position.latitude,
             longitude: position.longitude,
+            accuracy: position.accuracy,
             street: p.street ?? p.thoroughfare ?? '',
             province: p.administrativeArea ?? '',
             commune: p.subLocality ?? '',

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -9,7 +11,7 @@
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<string>com.sv.timestamp</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -23,6 +25,18 @@
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>SV Timestamp needs camera access to capture timestamped photos.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>SV Timestamp uses your location to add coordinates and addresses to photos you capture.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SV Timestamp uses your location to add coordinates and addresses to photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>SV Timestamp saves completed timestamped photos to your gallery.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SV Timestamp lets you choose a company logo from your photo library.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -41,17 +55,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>SV Timestamp needs camera access to capture timestamped photos.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SV Timestamp uses your location to add coordinates and addresses to photos.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>SV Timestamp saves completed timestamped photos to your gallery.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>SV Timestamp lets you choose a company logo from your photo library.</string>
 </dict>
 </plist>

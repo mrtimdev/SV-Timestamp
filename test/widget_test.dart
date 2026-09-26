@@ -14,7 +14,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
 
     expect(find.text('SV Timestamp'), findsOneWidget);
-    expect(find.text('Capture every detail'), findsOneWidget);
+    expect(find.text('GPS • Timestamp • Field Verification'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
