@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:sv_timestamp/core/services/image_stamp_service.dart';
 import 'package:sv_timestamp/core/watermark/field_report_watermark.dart';
+import 'package:sv_timestamp/core/watermark/watermark_contrast.dart';
 import 'package:sv_timestamp/models/app_settings.dart';
 import 'package:sv_timestamp/models/location_stamp.dart';
 import 'package:sv_timestamp/models/watermark_position.dart';
@@ -24,13 +25,17 @@ void main() {
     'reference template formats live time, date, weekday and custom note',
     () {
       final layout = FieldReportWatermark(
-        settings: const AppSettings(customNote: 'Gate 3 inspection'),
+        settings: const AppSettings(
+          showGps: true,
+          customNote: 'Gate 3 inspection',
+        ),
         location: location,
         device: 'iPhone 12 Pro Max',
         time: time,
         width: 320,
       );
-      expect(layout.semanticsLabel, contains('09:29 AM'));
+      expect(layout.semanticsLabel, contains('09:29'));
+      expect(layout.semanticsLabel, isNot(contains('AM')));
       expect(layout.semanticsLabel, contains('26 Sep 2026 Sat'));
       expect(layout.semanticsLabel, contains('11.5362'));
       expect(layout.semanticsLabel, contains('Gate 3 inspection'));
@@ -59,6 +64,28 @@ void main() {
     expect(layout.divider, isNull);
   });
 
+  test(
+    'row spacing applies between visible items without changing the header',
+    () {
+      FieldReportWatermark layout(double spacing) => FieldReportWatermark(
+        settings: AppSettings(watermarkRowSpacing: spacing),
+        location: location,
+        device: 'Test phone',
+        time: time,
+        width: 320,
+      );
+      final compact = layout(0);
+      final spaced = layout(12);
+      addTearDown(compact.dispose);
+      addTearDown(spaced.dispose);
+      // The default address, device and note produce two gaps; GPS stays hidden.
+      expect(spaced.semanticsLabel, isNot(contains('Lat:')));
+      expect(spaced.size.height - compact.size.height, 24);
+      expect(spaced.divider, compact.divider);
+      expect(spaced.logoRect, compact.logoRect);
+    },
+  );
+
   for (final zoom in [1.0, .5, 1.1]) {
     test('photo export matches the shared live layout at zoom $zoom', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -72,6 +99,8 @@ void main() {
       final destination = '${directory.path}/result.jpg';
       const settings = AppSettings(
         showLogo: false,
+        showGps: true,
+        watermarkRowSpacing: 11,
         language: AppLanguage.english,
         customNote: 'Gate 3 inspection',
       );
@@ -81,6 +110,7 @@ void main() {
         device: 'Test phone',
         time: time,
         width: 240 * zoom,
+        contrast: const WatermarkContrast(darkScene: true),
       );
       final layout = WatermarkCaptureLayout(
         previewSize: const Size(320, 480),

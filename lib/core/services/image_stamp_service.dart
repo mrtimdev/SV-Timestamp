@@ -15,6 +15,7 @@ import '../../models/location_stamp.dart';
 import '../../models/watermark_position.dart';
 import '../../features/camera/layout/image_coordinate_mapper.dart';
 import '../watermark/field_report_watermark.dart';
+import '../watermark/watermark_contrast.dart';
 
 class ImageStampService {
   Future<void> stamp({
@@ -26,12 +27,27 @@ class ImageStampService {
     required String device,
     DeviceOrientation captureOrientation = DeviceOrientation.portraitUp,
     WatermarkCaptureLayout? layout,
+    WatermarkContrast? contrast,
   }) async {
     final sourceImage = await _decode(await File(source).readAsBytes());
+
+    contrast ??= await WatermarkContrast.fromImage(
+      sourceImage,
+      region: layout == null
+          ? null
+          : ImageCoordinateMapper.map(
+              layout: layout,
+              imageSize: Size(
+                sourceImage.width.toDouble(),
+                sourceImage.height.toDouble(),
+              ),
+            ).sourceRect,
+    );
 
     if (settings.template == WatermarkTemplate.fieldReport) {
       await _stampFieldReport(
         sourceImage: sourceImage,
+        contrast: contrast,
         destination: destination,
         settings: settings,
         location: location,
@@ -58,10 +74,13 @@ class ImageStampService {
 
     final imageScale = mapped?.scale ?? (shortSide / 720).clamp(1.0, 2.5);
     final scale = imageScale * (layout?.watermarkZoom ?? 1);
-    final margin = (layout?.margin ?? 20.0) * imageScale;
-    final padding = 12.0 * settings.watermarkScale * scale;
+    final margin = (layout?.margin ?? settings.watermarkMargin) * imageScale;
+    // The live overlay has no card padding; the photo margin is applied once.
+    const padding = 0.0;
     final gap = 10.0 * settings.watermarkScale * scale;
     final lineGap = 3.5 * scale;
+    final rowGap =
+        settings.watermarkRowSpacing * settings.watermarkScale * scale;
     final logoSize = settings.logoSize * settings.watermarkScale * scale;
 
     // Panel width:
@@ -114,10 +133,10 @@ class ImageStampService {
           if (settings.showNote && settings.customNote.isNotEmpty)
             (
               icon: Icons.edit_note_rounded,
-              iconColor: const Color(0xFFFFB000),
+              iconColor: Colors.white,
               text:
                   '${_label(settings, 'Note', 'ចំណាំ')}: ${settings.customNote}',
-              textColor: const Color(0xFFFFB000),
+              textColor: Colors.white,
             ),
           if (settings.watermarkText.isNotEmpty)
             (
@@ -136,6 +155,7 @@ class ImageStampService {
           color: AppColors.lightSurface,
           bold: true,
           maxWidth: headerTextWidth,
+          shadows: contrast.textShadows(settings.watermarkScale * scale),
         ),
       if (settings.showDate || settings.showTime)
         _dateTimePainter(
@@ -143,6 +163,7 @@ class ImageStampService {
           settings: settings,
           scale: scale,
           maxWidth: headerTextWidth,
+          shadows: contrast.textShadows(settings.watermarkScale * scale),
         ),
     ];
 
@@ -154,6 +175,7 @@ class ImageStampService {
           color: entry.textColor,
           bold: entry.icon == Icons.edit_note_rounded,
           maxWidth: contentWidth - 24 * settings.watermarkScale * scale,
+          shadows: contrast.textShadows(settings.watermarkScale * scale),
         ),
     ];
 
@@ -166,8 +188,8 @@ class ImageStampService {
                 (index) => bodyPainters[index].height > iconSize
                     ? bodyPainters[index].height
                     : iconSize,
-              ).fold<double>(0, (sum, height) => sum + height + lineGap) -
-              lineGap;
+              ).fold<double>(0, (sum, height) => sum + height + rowGap) -
+              rowGap;
     final headerHeight = settings.showLogo
         ? logoSize > headerTextHeight
               ? logoSize
@@ -180,6 +202,26 @@ class ImageStampService {
         (bodyPainters.isNotEmpty && headerPainters.isNotEmpty ? gap : 0) +
         bodyHeight;
 
+    final outputWidth = mapped?.sourceRect.width.round() ?? sourceImage.width;
+    final outputHeight =
+        mapped?.sourceRect.height.round() ?? sourceImage.height;
+    final availableSize = layout == null
+        ? Size(outputWidth.toDouble(), outputHeight.toDouble())
+        : (layout.quarterTurns.isOdd
+                  ? Size(layout.safeRect.height, layout.safeRect.width)
+                  : layout.safeRect.size) *
+              imageScale;
+    final fit = math
+        .min(
+          1.0,
+          math.min(
+            (availableSize.width - margin * 2) / panelWidth,
+            (availableSize.height - margin * 2) / panelHeight,
+          ),
+        )
+        .clamp(.001, 1.0);
+    final renderedSize = Size(panelWidth * fit, panelHeight * fit);
+
     // Export text can wrap differently from the preview. Resolve the anchor
     // using its actual rendered height so bottom placements keep their inset.
     final placement = layout == null
@@ -190,33 +232,30 @@ class ImageStampService {
               sourceImage.width.toDouble(),
               sourceImage.height.toDouble(),
             ),
-            renderedWatermarkSize: Size(panelWidth, panelHeight),
+            renderedWatermarkSize: renderedSize,
           );
 
     final right = settings.position.name.contains('Right');
     final bottom = settings.position.name.contains('bottom');
-    final outputWidth = mapped?.sourceRect.width.round() ?? sourceImage.width;
-    final outputHeight =
-        mapped?.sourceRect.height.round() ?? sourceImage.height;
 
     final double left;
     if (mapped != null) {
       left = (placement!.rect.left - mapped.sourceRect.left).clamp(
         0.0,
-        outputWidth - panelWidth,
+        math.max(0.0, outputWidth - renderedSize.width),
       );
     } else {
-      left = right ? sourceImage.width - panelWidth - margin : margin;
+      left = right ? sourceImage.width - renderedSize.width - margin : margin;
     }
 
     final double top;
     if (mapped != null) {
       top = (placement!.rect.top - mapped.sourceRect.top).clamp(
         0.0,
-        outputHeight - panelHeight,
+        math.max(0.0, outputHeight - renderedSize.height),
       );
     } else {
-      top = bottom ? sourceImage.height - panelHeight - margin : margin;
+      top = bottom ? sourceImage.height - renderedSize.height - margin : margin;
     }
 
     final recorder = ui.PictureRecorder();
@@ -232,6 +271,10 @@ class ImageStampService {
       );
     }
 
+    canvas.save();
+    canvas.translate(left, top);
+    canvas.scale(fit);
+    canvas.translate(-left, -top);
     var y = top + padding;
     if (settings.showLogo) {
       final logo = await _decode(await _logoBytes(settings.logoPath));
@@ -239,6 +282,11 @@ class ImageStampService {
       final logoRRect = RRect.fromRectAndRadius(
         logoRect,
         Radius.circular(settings.logoRadius * scale),
+      );
+      contrast.paintBoxShadow(
+        canvas,
+        logoRRect,
+        settings.watermarkScale * scale,
       );
       canvas.save();
       canvas.clipRRect(logoRRect);
@@ -267,12 +315,18 @@ class ImageStampService {
     for (var index = 0; index < bodyPainters.length; index++) {
       final entry = bodyEntries[index];
       final painter = bodyPainters[index];
-      final icon = _iconPainter(entry.icon, entry.iconColor, iconSize);
+      final icon = _iconPainter(
+        entry.icon,
+        entry.iconColor,
+        iconSize,
+        shadows: contrast.textShadows(settings.watermarkScale * scale),
+      );
       icon.paint(canvas, Offset(left + padding, y));
       painter.paint(canvas, Offset(left + padding + iconSize + 7 * scale, y));
-      y += (painter.height > iconSize ? painter.height : iconSize) + lineGap;
+      y += (painter.height > iconSize ? painter.height : iconSize) + rowGap;
     }
 
+    canvas.restore();
     final rendered = await recorder.endRecording().toImage(
       outputWidth,
       outputHeight,
@@ -298,6 +352,7 @@ class ImageStampService {
 
   Future<void> _stampFieldReport({
     required ui.Image sourceImage,
+    required WatermarkContrast contrast,
     required String destination,
     required AppSettings settings,
     required LocationStamp location,
@@ -316,15 +371,21 @@ class ImageStampService {
     final width = mapped == null ? 320.0 : mapped.rect.width / mapped.scale;
     final design = FieldReportWatermark(
       settings: settings,
+      contrast: contrast,
       location: location,
       device: device,
       time: time,
       width: width,
     );
     var scale = mapped?.scale ?? source.width * .88 / width;
+    final margin =
+        (layout?.margin ?? settings.watermarkMargin) * (mapped?.scale ?? 1);
     scale = math.min(
       scale,
-      (source.height - settings.watermarkMargin * 2) / design.size.height,
+      math.min(
+        (source.width - margin * 2) / design.size.width,
+        (source.height - margin * 2) / design.size.height,
+      ),
     );
     final stampSize = Size(
       design.size.width * scale,
@@ -462,7 +523,7 @@ class ImageStampService {
             ),
           if (settings.showTime)
             TextSpan(
-              text: DateFormat('hh:mm:ss a').format(time),
+              text: DateFormat('HH:mm:ss').format(time),
               style: base.copyWith(
                 color: AppColors.lightBg,
                 fontWeight: FontWeight.w700,

@@ -29,9 +29,6 @@ class _CameraScreenState extends State<CameraScreen>
     with SingleTickerProviderStateMixin {
   Timer? _clock;
   final _previewKey = GlobalKey();
-  final _topControlsKey = GlobalKey();
-  final _bottomControlsKey = GlobalKey();
-  final _zoomControlsKey = GlobalKey();
   Rect _safePhotoRect = Rect.zero;
   Size _watermarkSize = Size.zero;
   double _watermarkZoom = 1;
@@ -100,7 +97,6 @@ class _CameraScreenState extends State<CameraScreen>
     final camera = context.watch<CameraProvider>();
     final settings = context.watch<SettingsProvider>().settings;
     final strings = AppStrings(settings.language);
-    _scheduleGeometry(camera, settings);
 
     final hasGps = camera.location.latitude != null;
     final turns = _deviceQuarterTurns(camera.deviceOrientation);
@@ -119,83 +115,84 @@ class _CameraScreenState extends State<CameraScreen>
             ratio: settings.cameraRatio,
             child: KeyedSubtree(
               key: _previewKey,
-              child: Stack(
-                fit: StackFit.expand,
-                clipBehavior: Clip.hardEdge,
-                children: [
-                  _CameraPreview(camera: camera),
-                  const _ViewfinderHUD(),
-                  if (!_safePhotoRect.isEmpty)
-                    Positioned.fromRect(
-                      rect: _safePhotoRect,
-                      child: DraggableWatermarkOverlay(
-                        scale: settings.watermarkZoom,
-                        position: _positionForScreen(wmPosition, turns),
-                        margin: settings.watermarkMargin,
-                        quarterTurns: turns,
-                        onLayout: (size, transform) {
-                          _watermarkSize = size;
-                          _watermarkZoom = transform.scale;
-                          _captureWatermarkPosition = _positionFromScreen(
-                            transform.position,
-                            turns,
-                          );
-                          _watermarkQuarterTurns = turns;
-                          _updateCaptureLayout(camera, settings);
-                        },
-                        onChanged: (transform) {
-                          final normalized = _positionFromScreen(
-                            transform.position,
-                            turns,
-                          );
-                          final provider = context.read<SettingsProvider>();
-                          final current = provider.settings;
-                          if (isLandscape) {
-                            setState(() => _landscapePosition = normalized);
-                            if (transform.scale != current.watermarkZoom) {
-                              provider.update(
-                                current.copyWith(
-                                  watermarkZoom: transform.scale,
-                                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  _safePhotoRect = Offset.zero & constraints.biggest;
+                  return Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      _CameraPreview(camera: camera),
+                      const _ViewfinderHUD(),
+                      if (!_safePhotoRect.isEmpty)
+                        Positioned.fill(
+                          child: DraggableWatermarkOverlay(
+                            scale: settings.watermarkZoom,
+                            position: _positionForScreen(wmPosition, turns),
+                            margin: settings.watermarkMargin,
+                            quarterTurns: turns,
+                            onLayout: (size, transform) {
+                              _watermarkSize = size;
+                              _watermarkZoom = transform.scale;
+                              _captureWatermarkPosition = _positionFromScreen(
+                                transform.position,
+                                turns,
                               );
-                            }
-                          } else {
-                            provider.update(
-                              current.copyWith(
-                                watermarkZoom: transform.scale,
-                                normalizedX: normalized.x,
-                                normalizedY: normalized.y,
-                              ),
-                            );
-                          }
-                        },
-                        child: TimestampOverlay(
-                          settings: settings,
-                          location: camera.location,
-                          device: camera.device,
-                          isLandscape: isLandscape,
-                          maxHeight:
-                              ((isLandscape
+                              _watermarkQuarterTurns = turns;
+                              _updateCaptureLayout(camera, settings);
+                            },
+                            onChanged: (transform) {
+                              final normalized = _positionFromScreen(
+                                transform.position,
+                                turns,
+                              );
+                              final provider = context.read<SettingsProvider>();
+                              final current = provider.settings;
+                              if (isLandscape) {
+                                setState(() => _landscapePosition = normalized);
+                                if (transform.scale != current.watermarkZoom) {
+                                  provider.update(
+                                    current.copyWith(
+                                      watermarkZoom: transform.scale,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                provider.update(
+                                  current.copyWith(
+                                    watermarkZoom: transform.scale,
+                                    normalizedX: normalized.x,
+                                    normalizedY: normalized.y,
+                                  ),
+                                );
+                              }
+                            },
+                            child: TimestampOverlay(
+                              settings: settings,
+                              contrast: camera.watermarkContrast,
+                              location: camera.location,
+                              device: camera.device,
+                              isLandscape: isLandscape,
+                              maxHeight:
+                                  ((isLandscape
                                       ? _safePhotoRect.width
                                       : _safePhotoRect.height) -
-                                  settings.watermarkMargin * 2) *
-                              (settings.template ==
-                                      WatermarkTemplate.fieldReport
-                                  ? .85
-                                  : 1),
-                          maxWidth: isLandscape
-                              ? (_safePhotoRect.longestSide * 0.44)
-                                    .clamp(300.0, 420.0)
-                                    .clamp(
-                                      0.0,
-                                      _safePhotoRect.height -
-                                          settings.watermarkMargin * 2,
-                                    )
-                              : _safePhotoRect.shortestSide * 0.92,
+                                  settings.watermarkMargin * 2),
+                              maxWidth: isLandscape
+                                  ? (_safePhotoRect.longestSide * 0.44)
+                                        .clamp(300.0, 420.0)
+                                        .clamp(
+                                          0.0,
+                                          _safePhotoRect.height -
+                                              settings.watermarkMargin * 2,
+                                        )
+                                  : _safePhotoRect.shortestSide * 0.92,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                ],
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -284,7 +281,6 @@ class _CameraScreenState extends State<CameraScreen>
                 ),
                 const SizedBox(height: 10),
                 Row(
-                  key: _topControlsKey,
                   children: [
                     Expanded(
                       child: _RatioSelector(
@@ -312,14 +308,7 @@ class _CameraScreenState extends State<CameraScreen>
                   ],
                 ),
                 const Spacer(),
-                if (camera.maxZoom > camera.minZoom)
-                  Padding(
-                    key: _zoomControlsKey,
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _ZoomSlider(camera: camera, uiTurns: uiTurns),
-                  ),
                 KeyedSubtree(
-                  key: _bottomControlsKey,
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 500),
@@ -340,51 +329,6 @@ class _CameraScreenState extends State<CameraScreen>
         ],
       ),
     );
-  }
-
-  void _scheduleGeometry(CameraProvider camera, AppSettings settings) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final preview =
-          _previewKey.currentContext?.findRenderObject() as RenderBox?;
-      if (preview == null) return;
-      final m = settings.watermarkMargin;
-      final topControls =
-          _topControlsKey.currentContext?.findRenderObject() as RenderBox?;
-      final bottomControls =
-          (_zoomControlsKey.currentContext ?? _bottomControlsKey.currentContext)
-                  ?.findRenderObject()
-              as RenderBox?;
-      final top = topControls == null
-          ? m
-          : preview
-                    .globalToLocal(
-                      topControls.localToGlobal(
-                        Offset(0, topControls.size.height),
-                      ),
-                    )
-                    .dy +
-                8;
-      final bottom = bottomControls == null
-          ? preview.size.height - m
-          : preview
-                    .globalToLocal(bottomControls.localToGlobal(Offset.zero))
-                    .dy -
-                8;
-      final next = Rect.fromLTRB(
-        m,
-        top.clamp(m, preview.size.height - m),
-        preview.size.width - m,
-        bottom.clamp(m, preview.size.height - m),
-      );
-      if (next != _safePhotoRect) setState(() => _safePhotoRect = next);
-      _updateCaptureLayout(
-        camera,
-        settings,
-        previewSize: preview.size,
-        safeRect: next,
-      );
-    });
   }
 
   void _updateCaptureLayout(
@@ -905,62 +849,6 @@ class _DockAction extends StatelessWidget {
       ),
     ),
   );
-}
-
-// ── Zoom slider ─────────────────────────────────────────────────────────────
-
-class _ZoomSlider extends StatelessWidget {
-  const _ZoomSlider({required this.camera, required this.uiTurns});
-  final CameraProvider camera;
-  final double uiTurns;
-
-  @override
-  Widget build(BuildContext context) {
-    final zoom = camera.currentZoom.clamp(camera.minZoom, camera.maxZoom);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 320),
-      child: GlassPanel(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-        radius: 28,
-        backgroundColor: Colors.black.withValues(alpha: 0.45),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 48,
-              height: 44,
-              child: Center(
-                child: RotatedBox(
-                  quarterTurns: (uiTurns * 4).round(),
-                  child: Text(
-                    '${zoom.toStringAsFixed(1)}×',
-                    style: const TextStyle(
-                      color: AppColors.amberAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Slider(
-                key: const ValueKey('camera-zoom-slider'),
-                min: camera.minZoom,
-                max: camera.maxZoom,
-                value: zoom,
-                activeColor: AppColors.amberAccent,
-                inactiveColor: Colors.white24,
-                label: '${zoom.toStringAsFixed(1)}×',
-                semanticFormatterCallback: (value) =>
-                    '${value.toStringAsFixed(1)}× zoom',
-                onChanged: camera.isCapturing ? null : camera.setZoom,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _GpsStatusBadge extends StatelessWidget {

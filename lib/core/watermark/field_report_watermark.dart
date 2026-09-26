@@ -6,11 +6,13 @@ import 'package:intl/intl.dart';
 
 import '../../models/app_settings.dart';
 import '../../models/location_stamp.dart';
+import 'watermark_contrast.dart';
 
 /// Shared vector layout for settings, the camera overlay, and full-size export.
 class FieldReportWatermark {
   FieldReportWatermark({
     required this.settings,
+    this.contrast = const WatermarkContrast(),
     required LocationStamp location,
     required String device,
     required DateTime time,
@@ -43,47 +45,38 @@ class FieldReportWatermark {
     }
     if (settings.showTime || settings.showDate) {
       final clockHeight = 60 * unit * settings.watermarkScale;
+      final inset = 3 * unit;
+      final columnGap = 8 * unit;
+      final dividerWidth = 2 * unit;
+      final dateWidth = settings.showTime ? width * .34 : width - inset * 2;
+      final timeWidth = settings.showDate
+          ? width - inset * 2 - dateWidth - columnGap * 2 - dividerWidth
+          : width * .76;
       if (settings.showTime) {
-        final timeWidth = settings.showDate ? width * .55 : width * .76;
         _fittedText(
-          DateFormat('hh:mm', 'en_US').format(time),
-          Rect.fromLTWH(3 * unit, y, timeWidth - 3 * unit, clockHeight),
+          DateFormat('HH:mm', 'en_US').format(time),
+          Rect.fromLTWH(inset, y, timeWidth, clockHeight),
           66 * unit,
           Colors.white,
           unit: unit,
           fillWidth: true,
         );
-        _fittedText(
-          DateFormat('a', 'en_US').format(time),
-          Rect.fromLTWH(
-            timeWidth + 2 * unit,
-            y + clockHeight * .56,
-            width * .075,
-            clockHeight * .38,
-          ),
-          21 * unit,
-          Colors.white,
-          unit: unit,
-        );
       }
       if (settings.showDate) {
-        final dateX = settings.showTime ? width * .68 : 3 * unit;
+        final dividerX = inset + timeWidth + columnGap;
+        final dateX = settings.showTime
+            ? dividerX + dividerWidth + columnGap
+            : inset;
+        final dateTop = y + 4 * unit;
+        final groupHeight = clockHeight - 8 * unit;
+        final dateHeight = groupHeight * .42;
+        final dayGap = 3 * unit;
         if (settings.showTime) {
-          divider = Rect.fromLTWH(
-            width * .65,
-            y + 5 * unit,
-            3 * unit,
-            clockHeight - 7 * unit,
-          );
+          divider = Rect.fromLTWH(dividerX, dateTop, dividerWidth, groupHeight);
         }
         _fittedText(
           DateFormat('dd MMM yyyy', 'en_US').format(time),
-          Rect.fromLTWH(
-            dateX,
-            y + 4 * unit,
-            width - dateX - 3 * unit,
-            clockHeight * .4,
-          ),
+          Rect.fromLTWH(dateX, dateTop, dateWidth, dateHeight),
           19 * unit,
           Colors.white,
           unit: unit,
@@ -92,12 +85,12 @@ class FieldReportWatermark {
           DateFormat('EEE', 'en_US').format(time),
           Rect.fromLTWH(
             dateX,
-            y + clockHeight * .45,
-            width - dateX - 3 * unit,
-            clockHeight * .52,
+            dateTop + dateHeight + dayGap,
+            dateWidth,
+            groupHeight - dateHeight - dayGap,
           ),
           31 * unit,
-          yellow,
+          Colors.white,
           unit: unit,
         );
       }
@@ -131,7 +124,7 @@ class FieldReportWatermark {
         (
           icon: Icons.edit_note_rounded,
           text: '${khmer ? 'ចំណាំ' : 'Note'}: ${settings.customNote}',
-          color: yellow,
+          color: Colors.white,
         ),
       if (settings.watermarkText.isNotEmpty)
         (
@@ -140,35 +133,44 @@ class FieldReportWatermark {
           color: Colors.white,
         ),
     ];
-    for (final row in rows) {
+    final rowGap =
+        settings.watermarkRowSpacing * settings.watermarkScale * unit;
+    for (var index = 0; index < rows.length; index++) {
+      final row = rows[index];
       final tileSize = 28 * unit;
       final text = _text(
         row.text,
-        Offset(40 * unit, y + 4 * unit),
+        Offset.zero,
         width - 43 * unit,
         font,
         row.color,
         unit: unit,
       );
       final height = math.max(tileSize, text.height + 8 * unit);
+      text.offset = Offset(40 * unit, y + (height - text.height) / 2);
       _tiles.add((
-        rect: Rect.fromLTWH(3 * unit, y, tileSize, tileSize),
+        rect: Rect.fromLTWH(
+          3 * unit,
+          y + (height - tileSize) / 2,
+          tileSize,
+          tileSize,
+        ),
         icon: row.icon,
-        color: row.icon == Icons.location_on_rounded ? yellow : row.color,
+        color: row.color,
       ));
-      y += height + gap;
+      y += height + (index < rows.length - 1 ? rowGap : gap);
     }
     size = Size(width, y + 3 * unit);
     semanticsLabel = [
-      if (settings.showTime) DateFormat('hh:mm a', 'en_US').format(time),
+      if (settings.showTime) DateFormat('HH:mm', 'en_US').format(time),
       if (settings.showDate)
         DateFormat('dd MMM yyyy EEE', 'en_US').format(time),
       ...rows.map((row) => row.text),
     ].join(', ');
   }
 
-  static const yellow = Color(0xFFFFCE00);
   final AppSettings settings;
+  final WatermarkContrast contrast;
   late final Size size;
   late final String semanticsLabel;
   Rect? logoRect;
@@ -179,11 +181,10 @@ class FieldReportWatermark {
   void dispose() {
     for (final text in _texts) {
       text.fill.dispose();
-      text.stroke.dispose();
     }
   }
 
-  TextPainter _text(
+  _OutlinedText _text(
     String value,
     Offset offset,
     double width,
@@ -198,9 +199,10 @@ class FieldReportWatermark {
       color,
       unit,
       maxWidth: width,
+      shadows: contrast.textShadows(unit),
     );
     _texts.add(text);
-    return text.fill;
+    return text;
   }
 
   void _fittedText(
@@ -211,7 +213,14 @@ class FieldReportWatermark {
     required double unit,
     bool fillWidth = false,
   }) {
-    final text = _OutlinedText(value, rect.topLeft, font, color, unit);
+    final text = _OutlinedText(
+      value,
+      rect.topLeft,
+      font,
+      color,
+      unit,
+      shadows: contrast.textShadows(unit),
+    );
     text.scale = math.min(
       rect.width / text.fill.width,
       rect.height / text.fill.height,
@@ -226,6 +235,16 @@ class FieldReportWatermark {
 
   void paint(Canvas canvas, {ui.Image? logo}) {
     final unit = size.width / 320;
+    if (logoRect != null) {
+      contrast.paintBoxShadow(
+        canvas,
+        RRect.fromRectAndRadius(
+          logoRect!,
+          Radius.circular(settings.logoRadius * unit),
+        ),
+        unit,
+      );
+    }
     if (logo != null && logoRect != null) {
       canvas.save();
       canvas.clipRRect(
@@ -243,37 +262,17 @@ class FieldReportWatermark {
       canvas.restore();
     }
     if (divider != null) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          divider!.inflate(1.5 * unit),
-          Radius.circular(2 * unit),
-        ),
-        Paint()..color = Colors.black87,
+      contrast.paintBoxShadow(
+        canvas,
+        RRect.fromRectAndRadius(divider!, Radius.circular(unit)),
+        unit,
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(divider!, Radius.circular(unit)),
-        Paint()..color = yellow,
+        Paint()..color = Colors.white,
       );
     }
     for (final tile in _tiles) {
-      final rounded = RRect.fromRectAndRadius(
-        tile.rect,
-        Radius.circular(math.min(settings.borderRadius, 8) * unit),
-      );
-      canvas.drawRRect(
-        rounded,
-        Paint()
-          ..color = const Color(
-            0xFF141921,
-          ).withValues(alpha: settings.backgroundOpacity),
-      );
-      canvas.drawRRect(
-        rounded,
-        Paint()
-          ..color = Colors.white24
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = unit,
-      );
       final icon = TextPainter(
         text: TextSpan(
           text: String.fromCharCode(tile.icon.codePoint),
@@ -281,6 +280,7 @@ class FieldReportWatermark {
             fontFamily: tile.icon.fontFamily,
             package: tile.icon.fontPackage,
             color: tile.color,
+            shadows: contrast.textShadows(unit),
             fontSize: 20 * unit,
           ),
         ),
@@ -306,6 +306,7 @@ class _OutlinedText {
     Color color,
     double unit, {
     double maxWidth = double.infinity,
+    List<Shadow>? shadows,
   }) {
     final style = TextStyle(
       fontFamily: 'Roboto',
@@ -314,41 +315,22 @@ class _OutlinedText {
       fontWeight: FontWeight.w900,
       height: 1.14,
       color: color,
-      shadows: [
-        Shadow(
-          color: Colors.black87,
-          blurRadius: 2 * unit,
-          offset: Offset(0, unit),
-        ),
-      ],
+      shadows: shadows,
     );
     fill = TextPainter(
       text: TextSpan(text: text, style: style),
       textDirection: ui.TextDirection.ltr,
     )..layout(maxWidth: maxWidth);
-    stroke = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: style.copyWith(
-          color: null,
-          foreground: Paint()
-            ..color = const Color(0xFF10141D)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.5 * unit,
-        ),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    )..layout(maxWidth: maxWidth);
   }
-  late final TextPainter fill, stroke;
+  late final TextPainter fill;
   Offset offset;
   double scale = 1;
   double? horizontalScale;
+  double get height => fill.height;
   void paint(Canvas canvas) {
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
     canvas.scale(horizontalScale ?? scale, scale);
-    stroke.paint(canvas, Offset.zero);
     fill.paint(canvas, Offset.zero);
     canvas.restore();
   }

@@ -2,8 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sv_timestamp/features/camera/widgets/draggable_watermark_overlay.dart';
 import 'package:sv_timestamp/models/watermark_position.dart';
+import 'package:sv_timestamp/features/camera/widgets/timestamp_overlay.dart';
+import 'package:sv_timestamp/models/app_settings.dart';
+import 'package:sv_timestamp/models/location_stamp.dart';
 
 void main() {
+  testWidgets(
+    'short classic content has no empty width blocking edge placement',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: 320,
+              height: 400,
+              child: DraggableWatermarkOverlay(
+                position: const WatermarkPosition(x: 1, y: 1),
+                margin: 20,
+                quarterTurns: 0,
+                onChanged: (_) {},
+                onLayout: (_, _) {},
+                child: const TimestampOverlay(
+                  settings: AppSettings(
+                    template: WatermarkTemplate.classic,
+                    companyName: 'Short',
+                    showLogo: false,
+                    showDate: false,
+                    showTime: false,
+                    showGps: false,
+                    showAddress: false,
+                    showDevice: false,
+                    showNote: false,
+                  ),
+                  location: LocationStamp(),
+                  device: 'Phone',
+                  maxWidth: 280,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final area = tester.getRect(find.byType(DraggableWatermarkOverlay));
+      final mark = tester.getRect(find.byType(TimestampOverlay));
+      expect(mark.width, lessThan(100));
+      expect(mark.right, closeTo(area.right - 20, .001));
+      expect(mark.bottom, closeTo(area.bottom - 20, .001));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final turns in [0, 1, 3]) {
     testWidgets(
       'pinch scales uniformly around its focal point at rotation $turns',

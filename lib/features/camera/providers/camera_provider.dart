@@ -9,11 +9,13 @@ import '../../../core/services/image_stamp_service.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/photo_storage_service.dart';
 import '../../../core/utils/app_strings.dart';
+import '../../../core/watermark/watermark_contrast.dart';
 import '../../../models/captured_photo.dart';
 import '../../../models/app_settings.dart';
 import '../../../models/location_stamp.dart';
 import '../../../models/watermark_position.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../layout/camera_preview_layout.dart';
 
 class CameraProvider extends ChangeNotifier {
   CameraProvider(this.settingsProvider);
@@ -34,6 +36,9 @@ class CameraProvider extends ChangeNotifier {
   double _maxZoom = 1.0;
   Future<void> _zoomQueue = Future.value();
   String? lastPhotoPath;
+  WatermarkContrast watermarkContrast = const WatermarkContrast();
+  bool _hasContrastSample = false;
+  DateTime? _lastContrastSample;
 
   double get currentZoom => _currentZoom;
   double get minZoom => _minZoom;
@@ -78,6 +83,9 @@ class CameraProvider extends ChangeNotifier {
       camera,
       ResolutionPreset.high,
       enableAudio: false,
+      imageFormatGroup: Platform.isIOS
+          ? ImageFormatGroup.bgra8888
+          : ImageFormatGroup.yuv420,
     );
     await controller!.initialize();
     deviceOrientation = controller!.value.deviceOrientation;
@@ -85,7 +93,51 @@ class CameraProvider extends ChangeNotifier {
     _maxZoom = await controller!.getMaxZoomLevel();
     _currentZoom = 1.0.clamp(_minZoom, _maxZoom);
     controller!.addListener(_handleCameraValueChanged);
+    _hasContrastSample = false;
+    _lastContrastSample = null;
+    await _startContrastStream(controller!);
     notifyListeners();
+  }
+
+  Future<void> _startContrastStream(CameraController active) async {
+    if (active != controller || active.value.isStreamingImages) return;
+    try {
+      await active.startImageStream((image) {
+        if (active != controller || isCapturing) return;
+        final now = DateTime.now();
+        if (_lastContrastSample != null &&
+            now.difference(_lastContrastSample!).inMilliseconds < 350) {
+          return;
+        }
+        _lastContrastSample = now;
+        final imageSize = Size(image.width.toDouble(), image.height.toDouble());
+        var previewSize = captureLayout?.previewSize ?? imageSize;
+        // Sampling the centered crop is invariant to rotation and mirroring.
+        // Sensor buffers and the portrait-locked UI may have swapped axes.
+        if ((imageSize.width > imageSize.height) !=
+            (previewSize.width > previewSize.height)) {
+          previewSize = Size(previewSize.height, previewSize.width);
+        }
+        final brightness = WatermarkContrast.cameraBrightness(
+          image,
+          region: CameraPreviewLayout.coverSourceRect(imageSize, previewSize),
+        );
+        if (brightness == null) return;
+        final next = WatermarkContrast.fromBrightness(
+          brightness,
+          previous: _hasContrastSample ? watermarkContrast : null,
+        );
+        _hasContrastSample = true;
+        if (next.darkScene == watermarkContrast.darkScene) return;
+        watermarkContrast = next;
+        notifyListeners();
+      });
+    } on CameraException {
+      // Some devices cannot stream alongside preview. Keep the readable
+      // fallback halo and determine contrast from the captured photo instead.
+    } on UnimplementedError {
+      // Image streams are not available on every camera backend.
+    }
   }
 
   void _handleCameraValueChanged() {
@@ -158,10 +210,16 @@ class CameraProvider extends ChangeNotifier {
     );
     final captureLocation = location;
     final captureDevice = device;
+    final contrast = _hasContrastSample ? watermarkContrast : null;
+    final activeController = controller!;
     final now = DateTime.now();
     notifyListeners();
     try {
-      final raw = await controller!.takePicture();
+      // Stop analysis for devices that cannot capture while streaming.
+      if (activeController.value.isStreamingImages) {
+        await activeController.stopImageStream();
+      }
+      final raw = await activeController.takePicture();
       final destination = await storage.newPath();
       await _stamper.stamp(
         source: raw.path,
@@ -172,6 +230,7 @@ class CameraProvider extends ChangeNotifier {
         device: captureDevice,
         captureOrientation: captureOrientation,
         layout: layout,
+        contrast: contrast,
       );
       try {
         if (!await Gal.hasAccess()) await Gal.requestAccess();
@@ -187,7 +246,10 @@ class CameraProvider extends ChangeNotifier {
       return null;
     } finally {
       isCapturing = false;
-      notifyListeners();
+      if (controller == activeController) {
+        await _startContrastStream(activeController);
+        notifyListeners();
+      }
     }
   }
 

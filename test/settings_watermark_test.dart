@@ -46,6 +46,23 @@ void main() {
     expect(settings.settings.showNote, isTrue);
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('customNote'), 'Note changed in settings');
+    await tester.scrollUntilVisible(
+      find.text('Row Spacing'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final rowSpacingSlider = find.byWidgetPredicate(
+      (widget) => widget is Slider && widget.min == 0 && widget.max == 24,
+    );
+    await tester.ensureVisible(rowSpacingSlider);
+    await tester.pumpAndSettle();
+    await tester.drag(rowSpacingSlider, const Offset(100, 0));
+    await tester.pumpAndSettle();
+    expect(settings.settings.watermarkRowSpacing, greaterThan(4));
+    expect(
+      prefs.getDouble('watermarkRowSpacing'),
+      settings.settings.watermarkRowSpacing,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
     camera.dispose();
     settings.dispose();

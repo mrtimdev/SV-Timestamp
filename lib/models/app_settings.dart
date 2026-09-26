@@ -36,7 +36,7 @@ class AppSettings {
   const AppSettings({
     this.showDate = true,
     this.showTime = true,
-    this.showGps = true,
+    this.showGps = false,
     this.showAddress = true,
     this.showStreet = true,
     this.showProvince = true,
@@ -56,12 +56,13 @@ class AppSettings {
     this.logoSize = 140,
     this.logoRadius = 0,
     this.position = OverlayPosition.bottomLeft,
-    this.fontSize = 13,
+    this.fontSize = 10,
     this.backgroundOpacity = .68,
     this.borderRadius = 18,
     this.watermarkScale = 1,
     this.watermarkZoom = 1,
-    this.watermarkMargin = 12,
+    this.watermarkMargin = 4,
+    this.watermarkRowSpacing = 4,
     this.manualQuarterTurns = 0,
     this.normalizedX = 0,
     this.normalizedY = 1,
@@ -82,6 +83,7 @@ class AppSettings {
   final double fontSize, backgroundOpacity, borderRadius, logoSize, logoRadius;
   final double watermarkScale, watermarkMargin, normalizedX, normalizedY;
   final double watermarkZoom;
+  final double watermarkRowSpacing;
   final int manualQuarterTurns;
   final WatermarkTemplate template;
   final ThemeMode themeMode;
@@ -94,13 +96,14 @@ class AppSettings {
       showLogo: true,
       showDate: true,
       showTime: true,
-      showGps: true,
+      showGps: false,
       showAddress: true,
       showDevice: true,
       showNote: true,
       showGpsAccuracy: false,
       logoSize: 140,
       logoRadius: 0,
+      fontSize: 10,
       position: OverlayPosition.bottomLeft,
       normalizedX: 0,
       normalizedY: 1,
@@ -176,6 +179,7 @@ class AppSettings {
     double? watermarkScale,
     double? watermarkZoom,
     double? watermarkMargin,
+    double? watermarkRowSpacing,
     int? manualQuarterTurns,
     double? normalizedX,
     double? normalizedY,
@@ -212,6 +216,7 @@ class AppSettings {
     watermarkScale: watermarkScale ?? this.watermarkScale,
     watermarkZoom: watermarkZoom ?? this.watermarkZoom,
     watermarkMargin: watermarkMargin ?? this.watermarkMargin,
+    watermarkRowSpacing: watermarkRowSpacing ?? this.watermarkRowSpacing,
     manualQuarterTurns: manualQuarterTurns ?? this.manualQuarterTurns,
     normalizedX: normalizedX ?? this.normalizedX,
     normalizedY: normalizedY ?? this.normalizedY,

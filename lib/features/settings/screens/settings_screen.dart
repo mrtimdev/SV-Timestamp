@@ -541,6 +541,15 @@ class SettingsScreen extends StatelessWidget {
                     provider.update(s.copyWith(watermarkScale: v)),
               ),
               _modernSlider(
+                label: strings.text('Row Spacing', 'គម្លាតរវាងជួរដេក'),
+                value: s.watermarkRowSpacing,
+                min: 0,
+                max: 24,
+                unit: 'px',
+                onChanged: (v) =>
+                    provider.update(s.copyWith(watermarkRowSpacing: v)),
+              ),
+              _modernSlider(
                 label: strings.text('Photo Margin', 'គែមសុវត្ថិភាព'),
                 value: s.watermarkMargin,
                 min: 4,

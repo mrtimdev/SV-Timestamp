@@ -38,6 +38,7 @@ class SettingsProvider extends ChangeNotifier {
       watermarkScale: prefs.getDouble('watermarkScale'),
       watermarkZoom: prefs.getDouble('watermarkZoom')?.clamp(.25, 3.0),
       watermarkMargin: prefs.getDouble('watermarkMargin'),
+      watermarkRowSpacing: prefs.getDouble('watermarkRowSpacing')?.clamp(0, 24),
       manualQuarterTurns: prefs.getInt('manualQuarterTurns'),
       normalizedX: prefs.getDouble('normalizedX'),
       normalizedY: prefs.getDouble('normalizedY'),
@@ -60,6 +61,22 @@ class SettingsProvider extends ChangeNotifier {
         await update(settings.withTemplate(WatermarkTemplate.fieldReport));
       }
       await prefs.setBool('fieldReportDefaultApplied', true);
+    }
+    if (!(prefs.getBool('watermarkFont10DefaultApplied') ?? false)) {
+      // Move the previous 13pt default to 10pt once, keeping custom sizes.
+      if (!prefs.containsKey('fontSize') || settings.fontSize == 13) {
+        settings = settings.copyWith(fontSize: 10);
+        await prefs.setDouble('fontSize', 10);
+      }
+      await prefs.setBool('watermarkFont10DefaultApplied', true);
+    }
+    if (!(prefs.getBool('watermarkMargin4DefaultApplied') ?? false)) {
+      // Update the previous default once, preserving other margin choices.
+      if (settings.watermarkMargin == 12) {
+        settings = settings.copyWith(watermarkMargin: 4);
+        await prefs.setDouble('watermarkMargin', 4);
+      }
+      await prefs.setBool('watermarkMargin4DefaultApplied', true);
     }
   }
 
@@ -102,6 +119,7 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setDouble('watermarkScale', next.watermarkScale);
     await prefs.setDouble('watermarkZoom', next.watermarkZoom);
     await prefs.setDouble('watermarkMargin', next.watermarkMargin);
+    await prefs.setDouble('watermarkRowSpacing', next.watermarkRowSpacing);
     await prefs.setInt('manualQuarterTurns', next.manualQuarterTurns);
     await prefs.setDouble('normalizedX', next.normalizedX);
     await prefs.setDouble('normalizedY', next.normalizedY);

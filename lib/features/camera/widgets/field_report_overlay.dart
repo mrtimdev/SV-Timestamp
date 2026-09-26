@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/watermark/field_report_watermark.dart';
+import '../../../core/watermark/watermark_contrast.dart';
 import '../../../models/app_settings.dart';
 import '../../../models/location_stamp.dart';
 
@@ -16,8 +17,10 @@ class FieldReportOverlay extends StatefulWidget {
     required this.time,
     required this.maxWidth,
     this.maxHeight = double.infinity,
+    this.contrast = const WatermarkContrast(),
   });
   final AppSettings settings;
+  final WatermarkContrast contrast;
   final LocationStamp location;
   final String device;
   final DateTime time;
@@ -44,6 +47,7 @@ class _FieldReportOverlayState extends State<FieldReportOverlay> {
       _layout?.dispose();
       final layout = _layout = FieldReportWatermark(
         settings: settings,
+        contrast: widget.contrast,
         location: widget.location,
         device: widget.device,
         time: widget.time,
@@ -64,6 +68,7 @@ class _FieldReportOverlayState extends State<FieldReportOverlay> {
             child: SizedBox.fromSize(
               size: layout.size,
               child: Stack(
+                clipBehavior: Clip.none,
                 children: [
                   Positioned.fill(
                     child: CustomPaint(painter: _FieldReportPainter(layout)),

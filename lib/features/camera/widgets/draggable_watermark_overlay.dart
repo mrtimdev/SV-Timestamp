@@ -79,7 +79,9 @@ class _DraggableWatermarkOverlayState extends State<DraggableWatermarkOverlay> {
   @override
   void didUpdateWidget(DraggableWatermarkOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.quarterTurns != widget.quarterTurns || !widget.draggable) {
+    if (oldWidget.quarterTurns != widget.quarterTurns ||
+        oldWidget.margin != widget.margin ||
+        !widget.draggable) {
       _gestureOffset = null;
       _gestureScale = null;
     }
@@ -156,6 +158,12 @@ class _DraggableWatermarkOverlayState extends State<DraggableWatermarkOverlay> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      if (_area != constraints.biggest) {
+        // A ratio change invalidates offsets in the previous photo frame.
+        // Resolve the saved normalized position in the new frame instead.
+        _gestureOffset = null;
+        _gestureScale = null;
+      }
       _area = constraints.biggest;
       _scheduleMeasure();
       final scale = _fitScale(_gestureScale ?? widget.scale);

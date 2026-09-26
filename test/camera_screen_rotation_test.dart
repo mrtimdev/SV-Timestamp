@@ -54,6 +54,113 @@ class _Camera extends CameraProvider {
 }
 
 void main() {
+  testWidgets('drag reaches every photo edge after ratio and margin changes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({});
+    final settings = SettingsProvider()
+      ..settings = const AppSettings(
+        language: AppLanguage.english,
+        watermarkZoom: .4,
+        normalizedX: .5,
+        normalizedY: .5,
+      );
+    final camera = _Camera(settings);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: settings),
+          ChangeNotifierProvider<CameraProvider>.value(value: camera),
+        ],
+        child: const MaterialApp(home: CameraScreen()),
+      ),
+    );
+    for (final margin in [4.0, 28.0]) {
+      for (final ratio in [...CameraRatio.values, CameraRatio.ratio3x4]) {
+        await settings.update(
+          settings.settings.copyWith(
+            cameraRatio: ratio,
+            watermarkMargin: margin,
+            normalizedX: .5,
+            normalizedY: .5,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final area = tester.getRect(find.byType(DraggableWatermarkOverlay));
+        final expectedSize = ratio == CameraRatio.full
+            ? const Size(390, 844)
+            : Size(390, 390 * ratio.h / ratio.w);
+        expect(area.width, closeTo(expectedSize.width, .0001));
+        expect(area.height, closeTo(expectedSize.height, .0001));
+        expect(
+          camera.captureLayout!.previewSize.width,
+          closeTo(area.width, .0001),
+        );
+        expect(
+          camera.captureLayout!.previewSize.height,
+          closeTo(area.height, .0001),
+        );
+        expect(camera.captureLayout!.safeRect.topLeft, Offset.zero);
+        expect(
+          camera.captureLayout!.safeRect.width,
+          closeTo(area.width, .0001),
+        );
+        expect(
+          camera.captureLayout!.safeRect.height,
+          closeTo(area.height, .0001),
+        );
+        final mark = find.byType(TimestampOverlay);
+        final gesture = await tester.startGesture(tester.getCenter(mark));
+        await gesture.moveBy(const Offset(25, 25));
+        await tester.pump();
+        for (final target in const [
+          Offset(-2000, -2000),
+          Offset(2000, -2000),
+          Offset(2000, 2000),
+          Offset(-2000, 2000),
+        ]) {
+          await gesture.moveTo(target);
+          await tester.pump();
+          final rect = tester.getRect(mark);
+          expect(
+            target.dx < 0 ? rect.left : rect.right,
+            closeTo(
+              target.dx < 0 ? area.left + margin : area.right - margin,
+              .01,
+            ),
+          );
+          expect(
+            target.dy < 0 ? rect.top : rect.bottom,
+            closeTo(
+              target.dy < 0 ? area.top + margin : area.bottom - margin,
+              .01,
+            ),
+          );
+          expect(
+            camera.captureLayout!.watermarkSize.width,
+            closeTo(rect.width, .01),
+          );
+          expect(
+            camera.captureLayout!.watermarkSize.height,
+            closeTo(rect.height, .01),
+          );
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(settings.settings.normalizedX, closeTo(0, .0001));
+        expect(settings.settings.normalizedY, closeTo(1, .0001));
+        expect(tester.takeException(), isNull);
+      }
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    camera.dispose();
+    settings.dispose();
+  });
+
   for (final screen in [const Size(390, 844), const Size(320, 568)]) {
     for (final ratio in CameraRatio.values) {
       testWidgets(
@@ -99,15 +206,12 @@ void main() {
             final ratios = CameraRatio.values
                 .map((r) => tester.getRect(find.text(r.label)))
                 .toList();
-            final sliderFinder = find.byType(Slider);
-            expect(sliderFinder, findsOneWidget);
-            final zooms = [tester.getRect(sliderFinder)];
             final dock = tester.getRect(
               find.byWidgetPredicate(
                 (w) => w.runtimeType.toString() == '_CaptureDock',
               ),
             );
-            for (final rect in [...ratios, ...zooms]) {
+            for (final rect in ratios) {
               expect(rect.left, greaterThanOrEqualTo(0));
               expect(rect.top, greaterThanOrEqualTo(0));
               expect(rect.right, lessThanOrEqualTo(screen.width));
@@ -115,16 +219,6 @@ void main() {
               expect(rect.overlaps(status), isFalse);
               expect(rect.overlaps(dock), isFalse);
             }
-            final slider = tester.widget<Slider>(sliderFinder);
-            expect(slider.min, .5);
-            expect(slider.max, 3);
-            await tester.tapAt(tester.getRect(sliderFinder).center);
-            await tester.pumpAndSettle();
-            expect(camera.zoom, closeTo(1.75, .1));
-            await tester.drag(sliderFinder, const Offset(100, 0));
-            await tester.pumpAndSettle();
-            expect(camera.zoom, greaterThan(1.75));
-            expect(camera.zoom, lessThanOrEqualTo(3));
             final areaFinder = find.byType(DraggableWatermarkOverlay);
             final overlay = tester.widget<DraggableWatermarkOverlay>(
               areaFinder,
@@ -161,7 +255,7 @@ void main() {
               expect(capture.quarterTurns, left ? 1 : 3);
               landscapeX = capture.position.x;
               landscapeY = capture.position.y;
-              // Clock ticks and zoom rebuilds must not snap a dragged stamp back.
+              // Clock ticks and camera rebuilds must not snap a dragged stamp back.
               await tester.pump(const Duration(seconds: 2));
               await tester.pumpAndSettle();
               expect(tester.getRect(find.byType(TimestampOverlay)), moved);

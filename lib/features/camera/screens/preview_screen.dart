@@ -90,7 +90,7 @@ class PreviewScreen extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  DateFormat('yyyy-MM-dd • hh:mm a')
+                                  DateFormat('yyyy-MM-dd • HH:mm')
                                       .format(photo.capturedAt),
                                   style: TextStyle(
                                     color: subtextColor,
