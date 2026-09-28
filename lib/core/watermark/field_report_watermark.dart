@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -28,7 +29,7 @@ class FieldReportWatermark {
         width * .65,
       );
       logoRect = Rect.fromLTWH(3 * unit, y, logoWidth, logoWidth * .64);
-      y += logoRect!.height + gap;
+      y += logoRect!.height + gap - 10;
     }
     if (settings.companyName.isNotEmpty &&
         settings.companyName != 'SV Timestamp') {
@@ -52,10 +53,11 @@ class FieldReportWatermark {
       _OutlinedText? clock;
       _OutlinedText? date;
       _OutlinedText? weekday;
+      final clockMarginTop = Platform.isIOS ? 10.0 : 0.0;
       if (settings.showTime) {
         clock = _text(
           DateFormat('HH:mm', 'en_US').format(time),
-          Offset(inset, y),
+          Offset(inset, y + clockMarginTop),
           double.infinity,
           settings.timeFontSize * settings.watermarkScale * unit,
           Colors.white,
@@ -96,21 +98,25 @@ class FieldReportWatermark {
               availableWidth;
       if (sideBySide) {
         final height = math.max(clock.height, dateHeight);
-        clock.offset = Offset(inset, y + (height - clock.height) / 2);
+        clock.offset = Offset(
+          inset,
+          y + (height - clock.height) / 2 + clockMarginTop,
+        );
         final dateX = inset + clockWidth + columnGap * 2 + dividerWidth;
-        final dateY = y + (height - dateHeight) / 2;
+        final dateMarginTop = Platform.isIOS ? 5.0 : 0.0;
+        final dateY = y + (height - dateHeight) / 2 + dateMarginTop;
         date.offset = Offset(dateX, dateY);
         weekday!.offset = Offset(dateX, dateY + date.height + dayGap);
         divider = Rect.fromLTWH(
           inset + clockWidth + columnGap,
-          y,
+          y + (height - clock.height) / 2 + (Platform.isIOS ? 10.0 : 5.0),
           dividerWidth,
-          height,
+          clock.height - 12,
         );
-        y += height + gap;
+        y += height + gap * .5;
       } else {
         // Stack at large font sizes so the date keeps the same size as body text.
-        if (clock != null) y += clock.height + gap;
+        if (clock != null) y += clock.height + gap * .5;
         if (date != null) {
           date.offset = Offset(inset, y);
           weekday!.offset = Offset(inset, y + date.height + dayGap);
@@ -118,6 +124,7 @@ class FieldReportWatermark {
         }
       }
     }
+    if (settings.showGps && Platform.isIOS) y += 10;
     final rows = <({String text, Color color})>[
       if (settings.showGps)
         (
@@ -223,7 +230,7 @@ class FieldReportWatermark {
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(divider!, Radius.circular(unit)),
-        Paint()..color = Colors.white,
+        Paint()..color = Colors.amber,
       );
     }
     for (final text in _texts) {
