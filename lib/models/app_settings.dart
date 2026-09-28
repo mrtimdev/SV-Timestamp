@@ -36,7 +36,7 @@ class AppSettings {
   const AppSettings({
     this.showDate = true,
     this.showTime = true,
-    this.showGps = false,
+    this.showGps = true,
     this.showAddress = true,
     this.showStreet = true,
     this.showProvince = true,
@@ -45,8 +45,8 @@ class AppSettings {
     this.showVillage = true,
     this.showCity = true,
     this.showCountry = true,
-    this.showDevice = true,
-    this.showNote = true,
+    this.showDevice = false,
+    this.showNote = false,
     this.showLogo = true,
     this.showGpsAccuracy = false,
     this.companyName = 'SV Timestamp',
@@ -57,6 +57,7 @@ class AppSettings {
     this.logoRadius = 0,
     this.position = OverlayPosition.bottomLeft,
     this.fontSize = 10,
+    this.timeFontSize = 30,
     this.backgroundOpacity = .68,
     this.borderRadius = 18,
     this.watermarkScale = 1,
@@ -80,7 +81,12 @@ class AppSettings {
   final String companyName, customNote, watermarkText;
   final String? logoPath;
   final OverlayPosition position;
-  final double fontSize, backgroundOpacity, borderRadius, logoSize, logoRadius;
+  final double fontSize,
+      timeFontSize,
+      backgroundOpacity,
+      borderRadius,
+      logoSize,
+      logoRadius;
   final double watermarkScale, watermarkMargin, normalizedX, normalizedY;
   final double watermarkZoom;
   final double watermarkRowSpacing;
@@ -96,10 +102,10 @@ class AppSettings {
       showLogo: true,
       showDate: true,
       showTime: true,
-      showGps: false,
+      showGps: true,
       showAddress: true,
-      showDevice: true,
-      showNote: true,
+      showDevice: false,
+      showNote: false,
       showGpsAccuracy: false,
       logoSize: 140,
       logoRadius: 0,
@@ -128,7 +134,7 @@ class AppSettings {
       showLogo: true,
       showGps: true,
       showAddress: true,
-      showNote: true,
+      showNote: false,
     ),
     WatermarkTemplate.minimal => copyWith(
       template: value,
@@ -144,7 +150,7 @@ class AppSettings {
       showGps: false,
       showAddress: true,
       showDevice: false,
-      showNote: true,
+      showNote: false,
     ),
     WatermarkTemplate.custom => copyWith(template: value),
   };
@@ -174,6 +180,7 @@ class AppSettings {
     double? logoRadius,
     OverlayPosition? position,
     double? fontSize,
+    double? timeFontSize,
     double? backgroundOpacity,
     double? borderRadius,
     double? watermarkScale,
@@ -211,6 +218,7 @@ class AppSettings {
     logoRadius: logoRadius ?? this.logoRadius,
     position: position ?? this.position,
     fontSize: fontSize ?? this.fontSize,
+    timeFontSize: timeFontSize ?? this.timeFontSize,
     backgroundOpacity: backgroundOpacity ?? this.backgroundOpacity,
     borderRadius: borderRadius ?? this.borderRadius,
     watermarkScale: watermarkScale ?? this.watermarkScale,

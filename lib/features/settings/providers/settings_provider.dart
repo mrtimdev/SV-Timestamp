@@ -33,6 +33,7 @@ class SettingsProvider extends ChangeNotifier {
       showCity: prefs.getBool('showCity'),
       showCountry: prefs.getBool('showCountry'),
       fontSize: prefs.getDouble('fontSize'),
+      timeFontSize: prefs.getDouble('timeFontSize')?.clamp(10, 80),
       backgroundOpacity: prefs.getDouble('backgroundOpacity'),
       borderRadius: prefs.getDouble('borderRadius'),
       watermarkScale: prefs.getDouble('watermarkScale'),
@@ -58,9 +59,26 @@ class SettingsProvider extends ChangeNotifier {
     if (!(prefs.getBool('fieldReportDefaultApplied') ?? false)) {
       if (!prefs.containsKey('watermarkTemplate') ||
           settings.template == WatermarkTemplate.classic) {
-        await update(settings.withTemplate(WatermarkTemplate.fieldReport));
+        await update(
+          settings
+              .withTemplate(WatermarkTemplate.fieldReport)
+              .copyWith(showNote: settings.showNote),
+        );
       }
       await prefs.setBool('fieldReportDefaultApplied', true);
+    }
+    if (!(prefs.getBool('watermarkNoteDefaultOffApplied') ?? false)) {
+      // Hide the old sample note once, preserving custom notes and later choices.
+      if (settings.customNote == const AppSettings().customNote) {
+        settings = settings.copyWith(showNote: false);
+        await prefs.setBool('showNote', false);
+      }
+      await prefs.setBool('watermarkNoteDefaultOffApplied', true);
+    }
+    if (!(prefs.getBool('watermarkDeviceDefaultOffApplied') ?? false)) {
+      settings = settings.copyWith(showDevice: false);
+      await prefs.setBool('showDevice', false);
+      await prefs.setBool('watermarkDeviceDefaultOffApplied', true);
     }
     if (!(prefs.getBool('watermarkFont10DefaultApplied') ?? false)) {
       // Move the previous 13pt default to 10pt once, keeping custom sizes.
@@ -114,6 +132,7 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setBool('showCity', next.showCity);
     await prefs.setBool('showCountry', next.showCountry);
     await prefs.setDouble('fontSize', next.fontSize);
+    await prefs.setDouble('timeFontSize', next.timeFontSize);
     await prefs.setDouble('backgroundOpacity', next.backgroundOpacity);
     await prefs.setDouble('borderRadius', next.borderRadius);
     await prefs.setDouble('watermarkScale', next.watermarkScale);

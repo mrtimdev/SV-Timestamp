@@ -40,6 +40,6 @@ class LocationStamp {
     if (parts.isEmpty) {
       return [khmer ? 'មិនអាចរកទីតាំងបាន' : 'Location unavailable'];
     }
-    return ['${khmer ? 'អាសយដ្ឋាន' : 'Address'}: ${parts.join(', ')}'];
+    return [parts.join(', ')];
   }
 }

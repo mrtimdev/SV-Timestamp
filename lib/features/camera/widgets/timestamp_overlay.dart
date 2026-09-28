@@ -7,7 +7,6 @@ import '../../../app/constants/app_colors.dart';
 import '../../../models/app_settings.dart';
 import '../../../core/watermark/watermark_contrast.dart';
 import '../../../models/location_stamp.dart';
-import '../../../core/utils/app_strings.dart';
 import 'field_report_overlay.dart';
 
 class TimestampOverlay extends StatelessWidget {
@@ -53,7 +52,6 @@ class TimestampOverlay extends StatelessWidget {
         maxHeight: maxHeight,
       );
     }
-    final strings = AppStrings(settings.language);
     final baseFontSize = settings.fontSize * settings.watermarkScale;
 
     final style = TextStyle(
@@ -67,6 +65,13 @@ class TimestampOverlay extends StatelessWidget {
     final labelStyle = style.copyWith(
       color: Colors.white.withValues(alpha: 0.85),
       fontWeight: FontWeight.w400,
+    );
+
+    Widget bodyLine(String text, TextStyle textStyle) => Padding(
+      padding: EdgeInsets.only(
+        bottom: settings.watermarkRowSpacing * settings.watermarkScale,
+      ),
+      child: Text(text, style: textStyle, softWrap: true),
     );
 
     final headerItems = <Widget>[
@@ -102,6 +107,7 @@ class TimestampOverlay extends StatelessWidget {
                   text: DateFormat('HH:mm:ss').format(now),
                   style: style.copyWith(
                     fontWeight: FontWeight.w700,
+                    fontSize: settings.timeFontSize * settings.watermarkScale,
                     color: AppColors.lightBg,
                   ),
                 ),
@@ -157,7 +163,7 @@ class TimestampOverlay extends StatelessWidget {
                                   fit: BoxFit.cover,
                                 )
                               : Image.asset(
-                                  'assets/images/sv_app_icon.png',
+                                  'assets/images/watermark_sv_app_icon.png',
                                   width:
                                       settings.logoSize *
                                       settings.watermarkScale,
@@ -180,172 +186,25 @@ class TimestampOverlay extends StatelessWidget {
                 ),
               ),
 
-            // GPS Coordinates
             if (settings.showGps)
-              Padding(
-                padding: EdgeInsets.only(
-                  bottom:
-                      settings.watermarkRowSpacing * settings.watermarkScale,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(
-                        top: 2 * settings.watermarkScale,
-                        right: 5 * settings.watermarkScale,
-                      ),
-                      child: Icon(
-                        shadows: contrast.textShadows(settings.watermarkScale),
-                        Icons.location_on_rounded,
-                        size: 13 * settings.watermarkScale,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Lat: ${location.latitudeText}  Lng: ${location.longitudeText}',
-                        style: style,
-                      ),
-                    ),
-                  ],
-                ),
+              bodyLine(
+                '${location.latitudeText}, ${location.longitudeText}',
+                style,
               ),
-
-            // GPS Accuracy
             if (settings.showGpsAccuracy && location.accuracy != null)
-              Padding(
-                padding: EdgeInsets.only(
-                  bottom:
-                      settings.watermarkRowSpacing * settings.watermarkScale,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(
-                        top: 2 * settings.watermarkScale,
-                        right: 5 * settings.watermarkScale,
-                      ),
-                      child: Icon(
-                        shadows: contrast.textShadows(settings.watermarkScale),
-                        Icons.gps_fixed_rounded,
-                        size: 12 * settings.watermarkScale,
-                        color: AppColors.success,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${strings.text('Accuracy', 'ភាពត្រឹមត្រូវ')}: ±${location.accuracy!.toStringAsFixed(1)} m',
-                        style: labelStyle,
-                      ),
-                    ),
-                  ],
-                ),
+              bodyLine(
+                '±${location.accuracy!.toStringAsFixed(1)} m',
+                labelStyle,
               ),
-
-            // Address Details
             if (settings.showAddress)
               ...location
                   .addressLinesFor(settings)
-                  .map(
-                    (line) => Padding(
-                      padding: EdgeInsets.only(
-                        bottom:
-                            settings.watermarkRowSpacing *
-                            settings.watermarkScale,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.only(
-                              top: 2 * settings.watermarkScale,
-                              right: 5 * settings.watermarkScale,
-                            ),
-                            child: Icon(
-                              shadows: contrast.textShadows(
-                                settings.watermarkScale,
-                              ),
-                              Icons.apartment_rounded,
-                              size: 12 * settings.watermarkScale,
-                              color: Colors.white60,
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(line, style: style, softWrap: true),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-            // Device
-            if (settings.showDevice)
-              Padding(
-                padding: EdgeInsets.only(
-                  bottom:
-                      settings.watermarkRowSpacing * settings.watermarkScale,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(
-                        top: 2 * settings.watermarkScale,
-                        right: 5 * settings.watermarkScale,
-                      ),
-                      child: Icon(
-                        shadows: contrast.textShadows(settings.watermarkScale),
-                        Icons.smartphone_rounded,
-                        size: 12 * settings.watermarkScale,
-                        color: Colors.white60,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${strings.text('Device', 'ឧបករណ៍')}: $device',
-                        style: labelStyle,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Custom Note
-            if (settings.showNote && settings.customNote.isNotEmpty)
-              Padding(
-                padding: EdgeInsets.only(
-                  bottom:
-                      settings.watermarkRowSpacing * settings.watermarkScale,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(
-                        top: 2 * settings.watermarkScale,
-                        right: 5 * settings.watermarkScale,
-                      ),
-                      child: Icon(
-                        shadows: contrast.textShadows(settings.watermarkScale),
-                        Icons.edit_note_rounded,
-                        size: 13 * settings.watermarkScale,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${strings.text('Note', 'ចំណាំ')}: ${settings.customNote}',
-                        style: style.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        softWrap: true,
-                      ),
-                    ),
-                  ],
-                ),
+                  .map((line) => bodyLine(line, style)),
+            if (settings.showDevice) bodyLine(device, labelStyle),
+            if (settings.showNote && settings.customNote.trim().isNotEmpty)
+              bodyLine(
+                settings.customNote,
+                style.copyWith(fontWeight: FontWeight.w600),
               ),
 
             // Custom Watermark Text

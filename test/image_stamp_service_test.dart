@@ -13,7 +13,7 @@ void main() {
 
   test('default logo has a transparent background', () {
     final logo = img.decodePng(
-      File('assets/images/sv_app_icon.png').readAsBytesSync(),
+      File('assets/images/watermark_sv_app_icon.png').readAsBytesSync(),
     )!;
     expect(logo.getPixel(0, 0).a, 0);
     expect(logo.getPixel(logo.width - 1, logo.height - 1).a, 0);
@@ -87,7 +87,7 @@ void main() {
     );
   }
 
-  test('formats visible address parts in one address label', () {
+  test('formats visible address parts without a title', () {
     final lines =
         const LocationStamp(
           street: 'Street 19',
@@ -103,9 +103,7 @@ void main() {
           ),
         );
 
-    expect(lines, [
-      'Address: Street 19, Phnom Penh, Mean Chey District, Cambodia',
-    ]);
+    expect(lines, ['Street 19, Phnom Penh, Mean Chey District, Cambodia']);
   });
 
   test('stamps a wrapped Khmer overlay with all location details', () async {

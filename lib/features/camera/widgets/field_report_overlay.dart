@@ -88,7 +88,7 @@ class _FieldReportOverlayState extends State<FieldReportOverlay> {
                                 fit: BoxFit.contain,
                               )
                             : Image.asset(
-                                'assets/images/sv_app_icon.png',
+                                'assets/images/watermark_sv_app_icon.png',
                                 fit: BoxFit.cover,
                               ),
                       ),

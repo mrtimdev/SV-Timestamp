@@ -10,11 +10,13 @@ void main() {
     const settings = AppSettings();
     expect(settings.template, WatermarkTemplate.fieldReport);
     expect(settings.fontSize, 10);
-    expect(settings.showNote, isTrue);
+    expect(settings.showNote, isFalse);
     expect(settings.customNote, 'Site Inspection');
     expect(settings.showLogo && settings.showTime && settings.showDate, isTrue);
     expect(settings.showGps, isFalse);
-    expect(settings.showAddress && settings.showDevice, isTrue);
+    expect(settings.showAddress, isTrue);
+    expect(settings.showDevice, isFalse);
+    expect(settings.timeFontSize, 48);
     expect(settings.watermarkMargin, 4);
     expect(settings.watermarkRowSpacing, 4);
     expect(settings.position, OverlayPosition.bottomLeft);
@@ -33,7 +35,7 @@ void main() {
     final provider = SettingsProvider();
     await provider.load();
     expect(provider.settings.template, WatermarkTemplate.fieldReport);
-    expect(provider.settings.showNote, isTrue);
+    expect(provider.settings.showNote, isFalse);
     expect(provider.settings.customNote, 'Inspection at gate 3');
     expect(provider.settings.companyName, 'My company');
     expect(provider.settings.logoPath, '/custom/logo.png');
@@ -68,6 +70,72 @@ void main() {
     await reloaded.updateNote('');
     expect(reloaded.settings.showNote, isFalse);
   });
+
+  test('notes start hidden for new installs and built-in templates', () async {
+    SharedPreferences.setMockInitialValues({});
+    final provider = SettingsProvider();
+    await provider.load();
+    expect(provider.settings.showNote, isFalse);
+    expect(provider.settings.showDevice, isFalse);
+    for (final template in WatermarkTemplate.values) {
+      expect(const AppSettings().withTemplate(template).showNote, isFalse);
+      expect(const AppSettings().withTemplate(template).showDevice, isFalse);
+    }
+    provider.dispose();
+  });
+
+  test('old sample note is hidden once and can be enabled again', () async {
+    SharedPreferences.setMockInitialValues({
+      'fieldReportDefaultApplied': true,
+      'customNote': 'Site Inspection',
+      'showNote': true,
+    });
+    final provider = SettingsProvider();
+    await provider.load();
+    expect(provider.settings.showNote, isFalse);
+    expect(provider.settings.customNote, 'Site Inspection');
+    await provider.update(provider.settings.copyWith(showNote: true));
+    final reloaded = SettingsProvider();
+    await reloaded.load();
+    expect(reloaded.settings.showNote, isTrue);
+    provider.dispose();
+    reloaded.dispose();
+  });
+
+  test('note default migration preserves saved custom notes', () async {
+    SharedPreferences.setMockInitialValues({
+      'customNote': 'Customer delivery',
+      'showNote': true,
+    });
+    final provider = SettingsProvider();
+    await provider.load();
+    expect(provider.settings.showNote, isTrue);
+    expect(provider.settings.customNote, 'Customer delivery');
+    provider.dispose();
+  });
+
+  test(
+    'device starts hidden once and later visibility and time size persist',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'fieldReportDefaultApplied': true,
+        'showDevice': true,
+      });
+      final provider = SettingsProvider();
+      await provider.load();
+      expect(provider.settings.showDevice, isFalse);
+      await provider.update(
+        provider.settings.copyWith(showDevice: true, timeFontSize: 36),
+      );
+      final reloaded = SettingsProvider();
+      await reloaded.load();
+      expect(reloaded.settings.showDevice, isTrue);
+      expect(reloaded.settings.timeFontSize, 36);
+      expect(reloaded.settings.fontSize, 10);
+      provider.dispose();
+      reloaded.dispose();
+    },
+  );
 
   test('old 13pt default upgrades to 10pt only once', () async {
     SharedPreferences.setMockInitialValues({

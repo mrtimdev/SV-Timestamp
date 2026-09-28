@@ -47,6 +47,21 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('customNote'), 'Note changed in settings');
     await tester.scrollUntilVisible(
+      find.text('Time Font Size'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final timeSlider = find.byWidgetPredicate(
+      (widget) => widget is Slider && widget.min == 10 && widget.max == 80,
+    );
+    await tester.ensureVisible(timeSlider);
+    await tester.pumpAndSettle();
+    await tester.drag(timeSlider, const Offset(60, 0));
+    await tester.pumpAndSettle();
+    expect(settings.settings.timeFontSize, greaterThan(48));
+    expect(settings.settings.fontSize, 10);
+    expect(prefs.getDouble('timeFontSize'), settings.settings.timeFontSize);
+    await tester.scrollUntilVisible(
       find.text('Row Spacing'),
       300,
       scrollable: find.byType(Scrollable).first,

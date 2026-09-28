@@ -28,6 +28,8 @@ void main() {
         settings: const AppSettings(
           showGps: true,
           customNote: 'Gate 3 inspection',
+          showNote: true,
+          timeFontSize: 32,
         ),
         location: location,
         device: 'iPhone 12 Pro Max',
@@ -68,7 +70,7 @@ void main() {
     'row spacing applies between visible items without changing the header',
     () {
       FieldReportWatermark layout(double spacing) => FieldReportWatermark(
-        settings: AppSettings(watermarkRowSpacing: spacing),
+        settings: AppSettings(watermarkRowSpacing: spacing, showDevice: true),
         location: location,
         device: 'Test phone',
         time: time,
@@ -78,13 +80,89 @@ void main() {
       final spaced = layout(12);
       addTearDown(compact.dispose);
       addTearDown(spaced.dispose);
-      // The default address, device and note produce two gaps; GPS stays hidden.
-      expect(spaced.semanticsLabel, isNot(contains('Lat:')));
-      expect(spaced.size.height - compact.size.height, 24);
+      // Address and explicitly enabled device have one gap.
+      expect(spaced.semanticsLabel, isNot(contains('11.5362')));
+      expect(spaced.semanticsLabel, isNot(contains('Site Inspection')));
+      expect(spaced.size.height - compact.size.height, 12);
       expect(spaced.divider, compact.divider);
       expect(spaced.logoRect, compact.logoRect);
     },
   );
+
+  test('watermark shows values without field titles in either language', () {
+    for (final language in AppLanguage.values) {
+      final design = FieldReportWatermark(
+        settings: AppSettings(
+          language: language,
+          showDate: false,
+          showTime: false,
+          showGps: true,
+          showGpsAccuracy: true,
+          showDevice: true,
+          showNote: true,
+          customNote: 'Gate inspection',
+        ),
+        location: const LocationStamp(
+          latitude: 11.5,
+          longitude: 104.9,
+          accuracy: 5,
+          city: 'Phnom Penh',
+        ),
+        device: 'Test phone',
+        time: time,
+        width: 320,
+      );
+      expect(
+        design.semanticsLabel,
+        '11.5000, 104.9000, ±5.0 m, Phnom Penh, Test phone, Gate inspection',
+      );
+      design.dispose();
+    }
+  });
+
+  test('clock size is independent of date and body font size', () {
+    FieldReportWatermark layout(AppSettings settings) => FieldReportWatermark(
+      settings: settings,
+      location: location,
+      device: 'Test phone',
+      time: time,
+      width: 320,
+    );
+    const base = AppSettings(
+      showLogo: false,
+      showAddress: false,
+      showDate: false,
+    );
+    final smallClock = layout(base.copyWith(timeFontSize: 20));
+    final largeClock = layout(base.copyWith(timeFontSize: 40));
+    expect(largeClock.size.height, greaterThan(smallClock.size.height));
+    final smallDate = layout(
+      base.copyWith(showTime: false, showDate: true, timeFontSize: 20),
+    );
+    final largeTimeOnly = layout(
+      base.copyWith(showTime: false, showDate: true, timeFontSize: 80),
+    );
+    expect(smallDate.size, largeTimeOnly.size);
+    final largeDate = layout(
+      base.copyWith(showTime: false, showDate: true, fontSize: 20),
+    );
+    expect(largeDate.size.height, greaterThan(smallDate.size.height));
+    final stacked = layout(
+      base.copyWith(showDate: true, timeFontSize: 80, fontSize: 20),
+    );
+    expect(stacked.divider, isNull);
+    expect(stacked.size.height, greaterThan(largeClock.size.height));
+    stacked.dispose();
+    for (final design in [
+      smallClock,
+      largeClock,
+      smallDate,
+      largeTimeOnly,
+      largeDate,
+    ]) {
+      design.dispose();
+    }
+  });
 
   for (final zoom in [1.0, .5, 1.1]) {
     test('photo export matches the shared live layout at zoom $zoom', () async {
@@ -103,6 +181,7 @@ void main() {
         watermarkRowSpacing: 11,
         language: AppLanguage.english,
         customNote: 'Gate 3 inspection',
+        showNote: true,
       );
       final design = FieldReportWatermark(
         settings: settings,

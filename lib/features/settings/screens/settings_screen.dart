@@ -371,7 +371,7 @@ class SettingsScreen extends StatelessWidget {
                               fit: BoxFit.cover,
                             )
                           : Image.asset(
-                              'assets/images/sv_app_icon.png',
+                              'assets/images/watermark_sv_app_icon.png',
                               width: 52,
                               height: 52,
                               fit: BoxFit.cover,
@@ -504,12 +504,23 @@ class SettingsScreen extends StatelessWidget {
           _Card(
             children: [
               _modernSlider(
-                label: strings.text('Font Size', 'ទំហំពុម្ពអក្សរ'),
+                label: strings.text(
+                  'Date & Text Font Size',
+                  'ទំហំអក្សរកាលបរិច្ឆេទ និងអត្ថបទ',
+                ),
                 value: s.fontSize,
                 min: 10,
                 max: 20,
                 unit: 'pt',
                 onChanged: (v) => provider.update(s.copyWith(fontSize: v)),
+              ),
+              _modernSlider(
+                label: strings.text('Time Font Size', 'ទំហំអក្សរម៉ោង'),
+                value: s.timeFontSize,
+                min: 10,
+                max: 80,
+                unit: 'pt',
+                onChanged: (v) => provider.update(s.copyWith(timeFontSize: v)),
               ),
               _modernSlider(
                 label: strings.text('Background Opacity', 'ភាពស្រអាប់ផ្ទៃ'),
@@ -631,11 +642,16 @@ class SettingsScreen extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(

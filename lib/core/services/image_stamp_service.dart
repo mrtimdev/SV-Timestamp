@@ -96,56 +96,29 @@ class ImageStampService {
         ? (contentWidth - logoSize - gap).clamp(50.0, double.infinity)
         : contentWidth;
 
-    final bodyEntries =
-        <({IconData icon, Color iconColor, String text, Color textColor})>[
-          if (settings.showGps)
-            (
-              icon: Icons.location_on_rounded,
-              iconColor: Colors.white70,
-              text:
-                  'Lat: ${location.latitudeText}  Lng: ${location.longitudeText}',
-              textColor: Colors.white,
-            ),
-          if (settings.showGpsAccuracy && location.accuracy != null)
-            (
-              icon: Icons.gps_fixed_rounded,
-              iconColor: Colors.white70,
-              text:
-                  '${_label(settings, 'Accuracy', 'ភាពត្រឹមត្រូវ')}: '
-                  '±${location.accuracy!.toStringAsFixed(1)} m',
-              textColor: Colors.white,
-            ),
-          if (settings.showAddress)
-            for (final line in location.addressLinesFor(settings))
-              (
-                icon: Icons.apartment_rounded,
-                iconColor: Colors.white70,
-                text: line,
-                textColor: Colors.white,
-              ),
-          if (settings.showDevice)
-            (
-              icon: Icons.phone_android_rounded,
-              iconColor: Colors.white60,
-              text: '${_label(settings, 'Device', 'ឧបករណ៍')}: $device',
-              textColor: Colors.white70,
-            ),
-          if (settings.showNote && settings.customNote.isNotEmpty)
-            (
-              icon: Icons.edit_note_rounded,
-              iconColor: Colors.white,
-              text:
-                  '${_label(settings, 'Note', 'ចំណាំ')}: ${settings.customNote}',
-              textColor: Colors.white,
-            ),
-          if (settings.watermarkText.isNotEmpty)
-            (
-              icon: Icons.label_outline_rounded,
-              iconColor: Colors.white70,
-              text: settings.watermarkText,
-              textColor: Colors.white,
-            ),
-        ];
+    final bodyEntries = <({String text, Color textColor, bool bold})>[
+      if (settings.showGps)
+        (
+          bold: false,
+          text: '${location.latitudeText}, ${location.longitudeText}',
+          textColor: Colors.white,
+        ),
+      if (settings.showGpsAccuracy && location.accuracy != null)
+        (
+          bold: false,
+          text: '±${location.accuracy!.toStringAsFixed(1)} m',
+          textColor: Colors.white,
+        ),
+      if (settings.showAddress)
+        for (final line in location.addressLinesFor(settings))
+          (bold: false, text: line, textColor: Colors.white),
+      if (settings.showDevice)
+        (bold: false, text: device, textColor: Colors.white70),
+      if (settings.showNote && settings.customNote.trim().isNotEmpty)
+        (bold: true, text: settings.customNote, textColor: Colors.white),
+      if (settings.watermarkText.isNotEmpty)
+        (bold: false, text: settings.watermarkText, textColor: Colors.white),
+    ];
 
     final headerPainters = <TextPainter>[
       if (settings.companyName.isNotEmpty)
@@ -173,23 +146,14 @@ class ImageStampService {
           entry.text,
           fontSize: settings.fontSize * settings.watermarkScale * scale,
           color: entry.textColor,
-          bold: entry.icon == Icons.edit_note_rounded,
-          maxWidth: contentWidth - 24 * settings.watermarkScale * scale,
+          bold: entry.bold,
+          maxWidth: contentWidth,
           shadows: contrast.textShadows(settings.watermarkScale * scale),
         ),
     ];
 
     final headerTextHeight = _paintersHeight(headerPainters, lineGap);
-    final iconSize = settings.fontSize * settings.watermarkScale * scale * 1.15;
-    final bodyHeight = bodyPainters.isEmpty
-        ? 0.0
-        : List.generate(
-                bodyPainters.length,
-                (index) => bodyPainters[index].height > iconSize
-                    ? bodyPainters[index].height
-                    : iconSize,
-              ).fold<double>(0, (sum, height) => sum + height + rowGap) -
-              rowGap;
+    final bodyHeight = _paintersHeight(bodyPainters, rowGap);
     final headerHeight = settings.showLogo
         ? logoSize > headerTextHeight
               ? logoSize
@@ -307,18 +271,9 @@ class ImageStampService {
     if (bodyPainters.isNotEmpty && headerPainters.isNotEmpty) {
       y += gap;
     }
-    for (var index = 0; index < bodyPainters.length; index++) {
-      final entry = bodyEntries[index];
-      final painter = bodyPainters[index];
-      final icon = _iconPainter(
-        entry.icon,
-        entry.iconColor,
-        iconSize,
-        shadows: contrast.textShadows(settings.watermarkScale * scale),
-      );
-      icon.paint(canvas, Offset(left + padding, y));
-      painter.paint(canvas, Offset(left + padding + iconSize + 7 * scale, y));
-      y += (painter.height > iconSize ? painter.height : iconSize) + rowGap;
+    for (final painter in bodyPainters) {
+      painter.paint(canvas, Offset(left + padding, y));
+      y += painter.height + rowGap;
     }
 
     canvas.restore();
@@ -470,27 +425,6 @@ class ImageStampService {
     return painter;
   }
 
-  TextPainter _iconPainter(
-    IconData icon,
-    Color color,
-    double size, {
-    List<Shadow>? shadows,
-  }) {
-    return TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(icon.codePoint),
-        style: TextStyle(
-          fontSize: size,
-          color: color,
-          fontFamily: icon.fontFamily,
-          package: icon.fontPackage,
-          shadows: shadows,
-        ),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-  }
-
   TextPainter _dateTimePainter(
     DateTime time, {
     required AppSettings settings,
@@ -522,6 +456,8 @@ class ImageStampService {
               style: base.copyWith(
                 color: AppColors.lightBg,
                 fontWeight: FontWeight.w700,
+                fontSize:
+                    settings.timeFontSize * settings.watermarkScale * scale,
               ),
             ),
         ],
@@ -529,9 +465,6 @@ class ImageStampService {
       textDirection: ui.TextDirection.ltr,
     )..layout(maxWidth: maxWidth);
   }
-
-  String _label(AppSettings settings, String english, String khmer) =>
-      settings.language == AppLanguage.khmer ? khmer : english;
 
   Future<ui.Image> _decode(Uint8List bytes) {
     final completer = Completer<ui.Image>();
@@ -543,7 +476,9 @@ class ImageStampService {
     if (logoPath != null && File(logoPath).existsSync()) {
       return File(logoPath).readAsBytes();
     }
-    final asset = await rootBundle.load('assets/images/sv_app_icon.png');
+    final asset = await rootBundle.load(
+      'assets/images/watermark_sv_app_icon.png',
+    );
     return asset.buffer.asUint8List();
   }
 }
