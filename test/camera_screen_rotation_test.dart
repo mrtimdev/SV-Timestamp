@@ -33,10 +33,12 @@ class _Camera extends CameraProvider {
   }
 
   double zoom = 1;
+  double minimumZoom = .5, maximumZoom = 3;
+  final zoomUpdates = <double>[];
   @override
-  double get minZoom => .5;
+  double get minZoom => minimumZoom;
   @override
-  double get maxZoom => 3;
+  double get maxZoom => maximumZoom;
   @override
   double get currentZoom => zoom;
   @override
@@ -44,8 +46,11 @@ class _Camera extends CameraProvider {
   @override
   Future<void> setZoom(double value) async {
     zoom = value;
+    zoomUpdates.add(value);
     notifyListeners();
   }
+
+  void refresh() => notifyListeners();
 
   void rotate(DeviceOrientation value) {
     deviceOrientation = value;
@@ -54,6 +59,85 @@ class _Camera extends CameraProvider {
 }
 
 void main() {
+  testWidgets(
+    'zoom icon opens a smooth bounded slider without changing the watermark',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      SharedPreferences.setMockInitialValues({});
+      final settings = SettingsProvider();
+      final camera = _Camera(settings);
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: settings),
+            ChangeNotifierProvider<CameraProvider>.value(value: camera),
+          ],
+          child: const MaterialApp(home: CameraScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final mark = tester.getRect(find.byType(TimestampOverlay));
+      expect(find.text('GPS ACTIVE'), findsNothing);
+      expect(find.byType(Slider), findsNothing);
+      // Reassemble before the first zoom, while this State has no controller.
+      final screenState = tester.state(find.byType(CameraScreen));
+      final firstReload = tester.binding.reassembleApplication();
+      await tester.pumpAndSettle();
+      await firstReload;
+      expect(tester.state(find.byType(CameraScreen)), same(screenState));
+      final toggle = find.byKey(const ValueKey('camera-zoom-toggle'));
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      final sliderFinder = find.byKey(const ValueKey('camera-zoom-slider'));
+      final slider = tester.widget<Slider>(sliderFinder);
+      expect(slider.min, .5);
+      expect(slider.max, 3);
+      await tester.tapAt(tester.getCenter(sliderFinder));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(camera.zoom, greaterThan(1));
+      expect(camera.zoom, lessThan(1.75));
+      await tester.pumpAndSettle();
+      expect(camera.zoom, closeTo(1.75, .01));
+      expect(camera.zoomUpdates.length, greaterThan(2));
+      expect(find.text('1.8×'), findsOneWidget);
+      // Further reloads must reuse the existing ticker and keep zoom working.
+      final secondReload = tester.binding.reassembleApplication();
+      await tester.pumpAndSettle();
+      await secondReload;
+      await tester.drag(sliderFinder, const Offset(500, 0));
+      await tester.pumpAndSettle();
+      expect(camera.zoom, 3);
+      await tester.drag(sliderFinder, const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(camera.zoom, .5);
+      expect(tester.getRect(find.byType(TimestampOverlay)), mark);
+      expect(settings.settings.watermarkZoom, 1);
+      expect(
+        camera.zoomUpdates.every((value) => value >= .5 && value <= 3),
+        isTrue,
+      );
+      camera.isCapturing = true;
+      camera.refresh();
+      await tester.pump();
+      expect(tester.widget<Slider>(sliderFinder).onChanged, isNull);
+      camera.isCapturing = false;
+      camera.minimumZoom = camera.maximumZoom = camera.zoom = 1;
+      camera.refresh();
+      await tester.pumpAndSettle();
+      expect(find.byType(Slider), findsNothing);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(find.byType(Slider), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      camera.dispose();
+      settings.dispose();
+    },
+  );
+
   testWidgets('drag reaches every photo edge after ratio and margin changes', (
     tester,
   ) async {
@@ -200,9 +284,23 @@ void main() {
             await tester.pumpAndSettle();
             expect(tester.takeException(), isNull);
             final status = tester.getRect(
-              find.byKey(const ValueKey('gps-status-badge')),
+              find.byKey(const ValueKey('camera-zoom-toggle')),
             );
-            expect(status.height, lessThan(80));
+            expect(status.height, 48);
+            expect(
+              find.byKey(const ValueKey('gps-status-label')),
+              findsNothing,
+            );
+            await tester.tap(find.byKey(const ValueKey('camera-zoom-toggle')));
+            await tester.pumpAndSettle();
+            final zoomSlider = tester.getRect(
+              find.byKey(const ValueKey('camera-zoom-slider')),
+            );
+            expect(zoomSlider.left, greaterThanOrEqualTo(0));
+            expect(zoomSlider.right, lessThanOrEqualTo(screen.width));
+            expect(zoomSlider.bottom, lessThan(screen.height));
+            await tester.tap(find.byKey(const ValueKey('camera-zoom-toggle')));
+            await tester.pumpAndSettle();
             final ratios = CameraRatio.values
                 .map((r) => tester.getRect(find.text(r.label)))
                 .toList();

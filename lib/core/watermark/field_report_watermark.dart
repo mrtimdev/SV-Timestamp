@@ -235,16 +235,6 @@ class FieldReportWatermark {
 
   void paint(Canvas canvas, {ui.Image? logo}) {
     final unit = size.width / 320;
-    if (logoRect != null) {
-      contrast.paintBoxShadow(
-        canvas,
-        RRect.fromRectAndRadius(
-          logoRect!,
-          Radius.circular(settings.logoRadius * unit),
-        ),
-        unit,
-      );
-    }
     if (logo != null && logoRect != null) {
       canvas.save();
       canvas.clipRRect(

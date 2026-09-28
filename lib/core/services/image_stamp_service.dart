@@ -283,11 +283,6 @@ class ImageStampService {
         logoRect,
         Radius.circular(settings.logoRadius * scale),
       );
-      contrast.paintBoxShadow(
-        canvas,
-        logoRRect,
-        settings.watermarkScale * scale,
-      );
       canvas.save();
       canvas.clipRRect(logoRRect);
       paintImage(

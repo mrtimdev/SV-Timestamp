@@ -14,22 +14,57 @@ import '../../../core/utils/app_strings.dart';
 import '../../settings/providers/settings_provider.dart';
 
 class GalleryScreen extends StatefulWidget {
-  const GalleryScreen({super.key});
+  const GalleryScreen({super.key, this.storage});
+
+  final PhotoStorageService? storage;
   @override
   State<GalleryScreen> createState() => _GalleryScreenState();
 }
 
 class _GalleryScreenState extends State<GalleryScreen>
     with TickerProviderStateMixin {
-  final _storage = PhotoStorageService();
+  late final _storage = widget.storage ?? PhotoStorageService();
   String _query = '';
   final _searchController = TextEditingController();
-  late Future<List<CapturedPhoto>> _photos = _storage.list();
+  late final Future<List<CapturedPhoto>> _photos = _storage.list();
 
   late AnimationController _headerAnim;
   late Animation<double> _headerFade;
 
-  void refresh() => setState(() => _photos = _storage.list());
+  final _deletedPaths = <String>{};
+  final _deletingPaths = <String>{};
+
+  Future<bool> _deletePhoto(CapturedPhoto photo) async {
+    if (!_deletingPaths.add(photo.path)) return false;
+    try {
+      await _storage.delete(photo.path);
+      if (mounted) {
+        // Update the displayed snapshot immediately, without waiting for a
+        // second directory scan or a callback from a recycled grid card.
+        setState(() => _deletedPaths.add(photo.path));
+      }
+      return true;
+    } catch (_) {
+      if (mounted) {
+        final strings = AppStrings(
+          context.read<SettingsProvider>().settings.language,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              strings.text(
+                'Could not delete photo. Please try again.',
+                'មិនអាចលុបរូបថតបានទេ។ សូមព្យាយាមម្ដងទៀត។',
+              ),
+            ),
+          ),
+        );
+      }
+      return false;
+    } finally {
+      _deletingPaths.remove(photo.path);
+    }
+  }
 
   @override
   void initState() {
@@ -87,7 +122,9 @@ class _GalleryScreenState extends State<GalleryScreen>
               );
             }
 
-            final allPhotos = snapshot.data!;
+            final allPhotos = snapshot.data!.where(
+              (photo) => !_deletedPaths.contains(photo.path),
+            );
             final visible = allPhotos
                 .where(
                   (p) => DateFormat('MMM d, yyyy')
@@ -143,12 +180,13 @@ class _GalleryScreenState extends State<GalleryScreen>
                           childAspectRatio: 0.76,
                         ),
                     itemBuilder: (context, index) => _PhotoCard(
+                      key: ValueKey(visible[index].path),
                       photo: visible[index],
                       allPhotos: visible,
                       initialIndex: index,
                       strings: strings,
                       isDark: isDark,
-                      onChanged: refresh,
+                      onDelete: _deletePhoto,
                     ),
                   ),
                 ),
@@ -223,7 +261,9 @@ class _GallerySliverAppBar extends StatelessWidget {
                         ),
                         child: Icon(
                           Icons.arrow_back_ios_new_rounded,
-                          color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF1E293B),
                           size: 18,
                         ),
                       ),
@@ -271,7 +311,9 @@ class _GallerySliverAppBar extends StatelessWidget {
                           ),
                           style: TextStyle(
                             fontSize: 11.5,
-                            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                            color: isDark
+                                ? Colors.white54
+                                : const Color(0xFF64748B),
                           ),
                         ),
                       ],
@@ -320,7 +362,9 @@ class _GallerySliverAppBar extends StatelessWidget {
                       ),
                       hintStyle: TextStyle(
                         fontSize: 13.5,
-                        color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+                        color: isDark
+                            ? Colors.white30
+                            : const Color(0xFF94A3B8),
                       ),
                       suffixIcon: query.isNotEmpty
                           ? GestureDetector(
@@ -391,12 +435,13 @@ class _CountBadge extends StatelessWidget {
 // ─────────────────────────────────────────────
 class _PhotoCard extends StatefulWidget {
   const _PhotoCard({
+    super.key,
     required this.photo,
     required this.allPhotos,
     required this.initialIndex,
     required this.strings,
     required this.isDark,
-    required this.onChanged,
+    required this.onDelete,
   });
 
   final CapturedPhoto photo;
@@ -404,7 +449,7 @@ class _PhotoCard extends StatefulWidget {
   final int initialIndex;
   final AppStrings strings;
   final bool isDark;
-  final VoidCallback onChanged;
+  final Future<bool> Function(CapturedPhoto) onDelete;
 
   @override
   State<_PhotoCard> createState() => _PhotoCardState();
@@ -437,16 +482,18 @@ class _PhotoCardState extends State<_PhotoCard>
   }
 
   void _openDetail(BuildContext context) {
+    // Keep the route independent of this grid card's lifetime and index.
+    final photos = List<CapturedPhoto>.of(widget.allPhotos);
+    final initialIndex = widget.initialIndex;
+    final strings = widget.strings;
+    final onDelete = widget.onDelete;
     Navigator.of(context).push(
       _SlideUpPageRoute(
         builder: (_) => _FullScreenSlider(
-          photos: widget.allPhotos,
-          initialIndex: widget.initialIndex,
-          strings: widget.strings,
-          onDeleted: () {
-            Navigator.of(context).pop();
-            widget.onChanged();
-          },
+          photos: photos,
+          initialIndex: initialIndex,
+          strings: strings,
+          onDelete: onDelete,
         ),
       ),
     );
@@ -476,7 +523,9 @@ class _PhotoCardState extends State<_PhotoCard>
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: widget.isDark ? 0.25 : 0.08),
+                color: Colors.black.withValues(
+                  alpha: widget.isDark ? 0.25 : 0.08,
+                ),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -514,7 +563,9 @@ class _PhotoCardState extends State<_PhotoCard>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        DateFormat('MMM d, yyyy').format(widget.photo.capturedAt),
+                        DateFormat(
+                          'MMM d, yyyy',
+                        ).format(widget.photo.capturedAt),
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -541,7 +592,7 @@ class _PhotoCardState extends State<_PhotoCard>
                   child: _CardQuickActions(
                     photo: widget.photo,
                     strings: widget.strings,
-                    onChanged: widget.onChanged,
+                    onDelete: widget.onDelete,
                   ),
                 ),
                 const Positioned(
@@ -569,12 +620,12 @@ class _CardQuickActions extends StatelessWidget {
   const _CardQuickActions({
     required this.photo,
     required this.strings,
-    required this.onChanged,
+    required this.onDelete,
   });
 
   final CapturedPhoto photo;
   final AppStrings strings;
-  final VoidCallback onChanged;
+  final Future<bool> Function(CapturedPhoto) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -605,8 +656,7 @@ class _CardQuickActions extends StatelessWidget {
                 );
               }
               if (value == 'delete') {
-                await PhotoStorageService().delete(photo.path);
-                onChanged();
+                await onDelete(photo);
               }
             },
             itemBuilder: (_) => [
@@ -663,13 +713,13 @@ class _FullScreenSlider extends StatefulWidget {
     required this.photos,
     required this.initialIndex,
     required this.strings,
-    required this.onDeleted,
+    required this.onDelete,
   });
 
   final List<CapturedPhoto> photos;
   final int initialIndex;
   final AppStrings strings;
-  final VoidCallback onDeleted;
+  final Future<bool> Function(CapturedPhoto) onDelete;
 
   @override
   State<_FullScreenSlider> createState() => _FullScreenSliderState();
@@ -680,6 +730,7 @@ class _FullScreenSliderState extends State<_FullScreenSlider>
   late PageController _pageController;
   late int _current;
   bool _barsVisible = true;
+  bool _deleting = false;
   late AnimationController _barsAnim;
   late Animation<double> _barsFade;
 
@@ -715,13 +766,21 @@ class _FullScreenSliderState extends State<_FullScreenSlider>
   CapturedPhoto get _currentPhoto => widget.photos[_current];
 
   Future<void> _deletePhoto() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dCtx) => _ConfirmDeleteDialog(strings: widget.strings),
-    );
-    if (confirm == true && mounted) {
-      await PhotoStorageService().delete(_currentPhoto.path);
-      widget.onDeleted();
+    if (_deleting) return;
+    _deleting = true;
+    final photo = _currentPhoto;
+    try {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dCtx) => _ConfirmDeleteDialog(strings: widget.strings),
+      );
+      if (confirm != true || !mounted) return;
+      final deleted = await widget.onDelete(photo);
+      if (deleted && mounted && ModalRoute.of(context)?.isCurrent == true) {
+        Navigator.of(context).pop();
+      }
+    } finally {
+      _deleting = false;
     }
   }
 
@@ -862,10 +921,7 @@ class _TopBar extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withValues(alpha: 0.7),
-                Colors.transparent,
-              ],
+              colors: [Colors.black.withValues(alpha: 0.7), Colors.transparent],
             ),
           ),
           child: SafeArea(
@@ -1189,7 +1245,7 @@ class _ConfirmDeleteDialog extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(strings.text('Delete photo?', 'លុបរូបថតនេះ?')),
+          Expanded(child: Text(strings.text('Delete photo?', 'លុបរូបថតនេះ?'))),
         ],
       ),
       content: Text(

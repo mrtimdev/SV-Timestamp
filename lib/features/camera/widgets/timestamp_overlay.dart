@@ -139,43 +139,33 @@ class TimestampOverlay extends StatelessWidget {
                         padding: EdgeInsets.only(
                           right: 10 * settings.watermarkScale,
                         ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(
-                              settings.logoRadius * settings.watermarkScale,
-                            ),
-                            boxShadow: contrast.boxShadows(
-                              settings.watermarkScale,
-                            ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                            settings.logoRadius * settings.watermarkScale,
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                              settings.logoRadius * settings.watermarkScale,
-                            ),
-                            child:
-                                settings.logoPath != null &&
-                                    File(settings.logoPath!).existsSync()
-                                ? Image.file(
-                                    File(settings.logoPath!),
-                                    width:
-                                        settings.logoSize *
-                                        settings.watermarkScale,
-                                    height:
-                                        settings.logoSize *
-                                        settings.watermarkScale,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Image.asset(
-                                    'assets/images/sv_app_icon.png',
-                                    width:
-                                        settings.logoSize *
-                                        settings.watermarkScale,
-                                    height:
-                                        settings.logoSize *
-                                        settings.watermarkScale,
-                                    fit: BoxFit.cover,
-                                  ),
-                          ),
+                          child:
+                              settings.logoPath != null &&
+                                  File(settings.logoPath!).existsSync()
+                              ? Image.file(
+                                  File(settings.logoPath!),
+                                  width:
+                                      settings.logoSize *
+                                      settings.watermarkScale,
+                                  height:
+                                      settings.logoSize *
+                                      settings.watermarkScale,
+                                  fit: BoxFit.cover,
+                                )
+                              : Image.asset(
+                                  'assets/images/sv_app_icon.png',
+                                  width:
+                                      settings.logoSize *
+                                      settings.watermarkScale,
+                                  height:
+                                      settings.logoSize *
+                                      settings.watermarkScale,
+                                  fit: BoxFit.cover,
+                                ),
                         ),
                       ),
                     if (headerItems.isNotEmpty)

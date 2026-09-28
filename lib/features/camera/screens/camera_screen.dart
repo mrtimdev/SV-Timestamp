@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/routes/app_router.dart';
-import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/widgets/glass_panel.dart';
 import '../../../core/utils/app_strings.dart';
 import '../../../models/app_settings.dart';
@@ -18,6 +17,7 @@ import '../providers/camera_provider.dart';
 import '../widgets/draggable_watermark_overlay.dart';
 import '../widgets/camera_note_editor.dart';
 import '../widgets/timestamp_overlay.dart';
+import '../widgets/oriented_camera_preview.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -36,6 +36,40 @@ class _CameraScreenState extends State<CameraScreen>
   int? _watermarkQuarterTurns;
   bool _showCaptureFlash = false;
   WatermarkPosition _landscapePosition = const WatermarkPosition();
+  bool _showZoom = false;
+  AnimationController? _zoomController;
+  CameraProvider? _zoomCamera;
+  CameraController? _zoomHardware;
+  double _zoomFrom = 1, _zoomTo = 1;
+
+  void _animateZoom(CameraProvider camera, double value) {
+    if (camera.isCapturing || camera.maxZoom <= camera.minZoom) return;
+    _zoomCamera = camera;
+    _zoomHardware = camera.controller;
+    _zoomFrom = camera.currentZoom;
+    _zoomTo = value.clamp(camera.minZoom, camera.maxZoom);
+    // Hot reload keeps existing State objects without rerunning initState.
+    // Create the controller on first use, including for an already-open screen.
+    final animation = _zoomController ??= (AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    )..addListener(_applyZoom));
+    animation.forward(from: 0);
+  }
+
+  void _applyZoom() {
+    final animation = _zoomController;
+    if (animation == null) return;
+    final camera = _zoomCamera;
+    if (camera == null ||
+        camera.controller != _zoomHardware ||
+        camera.isCapturing) {
+      animation.stop();
+      return;
+    }
+    final progress = Curves.easeOutCubic.transform(animation.value);
+    unawaited(camera.setZoom(_zoomFrom + (_zoomTo - _zoomFrom) * progress));
+  }
 
   Future<void> _editNote() async {
     final provider = context.read<SettingsProvider>();
@@ -89,6 +123,7 @@ class _CameraScreenState extends State<CameraScreen>
   @override
   void dispose() {
     _clock?.cancel();
+    _zoomController?.dispose();
     super.dispose();
   }
 
@@ -98,7 +133,7 @@ class _CameraScreenState extends State<CameraScreen>
     final settings = context.watch<SettingsProvider>().settings;
     final strings = AppStrings(settings.language);
 
-    final hasGps = camera.location.latitude != null;
+    final canZoom = camera.maxZoom > camera.minZoom && !camera.isCapturing;
     final turns = _deviceQuarterTurns(camera.deviceOrientation);
     final uiTurns = _uiRotationTurns(camera.deviceOrientation);
     final isLandscape = turns.isOdd;
@@ -228,58 +263,44 @@ class _CameraScreenState extends State<CameraScreen>
             minimum: const EdgeInsets.fromLTRB(16, 12, 16, 14),
             child: Column(
               children: [
-                // Top bar: Settings, GPS Status Badge, Flash
-                KeyedSubtree(
-                  child: Row(
-                    children: [
-                      AnimatedRotation(
-                        turns: uiTurns,
-                        duration: const Duration(milliseconds: 250),
-                        child: AppIconButton(
-                          icon: Icons.settings_rounded,
-                          tooltip: strings.text('Settings', 'ការកំណត់'),
-                          size: 44,
-                          iconSize: 21,
-                          onPressed: () =>
-                              Navigator.pushNamed(context, AppRoutes.settings),
-                        ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: _GpsStatusBadge(
-                            hasGps: hasGps,
-                            accuracy: camera.location.accuracy,
-                            quarterTurns: turns,
-                          ),
-                        ),
-                      ),
-                      AnimatedRotation(
-                        turns: uiTurns,
-                        duration: const Duration(milliseconds: 250),
-                        child: AppIconButton(
-                          icon: camera.flashVisible
-                              ? Icons.flash_on_rounded
-                              : Icons.flash_off_rounded,
-                          color: camera.flashVisible
-                              ? AppColors.amberAccent
-                              : Colors.white,
-                          backgroundColor: camera.flashVisible
-                              ? AppColors.amberAccent.withValues(alpha: 0.2)
+                // Equal-sized toolbar controls with a shared visual style.
+                Row(
+                  children: [
+                    _CameraToolbarButton(
+                      icon: Icons.settings_outlined,
+                      label: strings.text('Settings', 'ការកំណត់'),
+                      uiTurns: uiTurns,
+                      onPressed: () =>
+                          Navigator.pushNamed(context, AppRoutes.settings),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: _CameraToolbarButton(
+                          key: const ValueKey('camera-zoom-toggle'),
+                          icon: Icons.zoom_in_rounded,
+                          label: strings.text('Camera zoom', 'ពង្រីកកាមេរ៉ា'),
+                          value: '${camera.currentZoom.toStringAsFixed(1)}×',
+                          uiTurns: uiTurns,
+                          selected: _showZoom,
+                          expanded: _showZoom,
+                          onPressed: canZoom
+                              ? () => setState(() => _showZoom = !_showZoom)
                               : null,
-                          borderColor: camera.flashVisible
-                              ? AppColors.amberAccent.withValues(alpha: 0.4)
-                              : null,
-                          size: 44,
-                          iconSize: 21,
-                          tooltip: strings.text('Flash', 'ភ្លើងហ្វ្លាស'),
-                          onPressed: camera.toggleFlash,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    _CameraToolbarButton(
+                      icon: camera.flashVisible
+                          ? Icons.flash_on_outlined
+                          : Icons.flash_off_outlined,
+                      label: strings.text('Flash', 'ភ្លើងហ្វ្លាស'),
+                      uiTurns: uiTurns,
+                      selected: camera.flashVisible,
+                      onPressed: camera.toggleFlash,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -293,19 +314,75 @@ class _CameraScreenState extends State<CameraScreen>
                         },
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    RotatedBox(
-                      quarterTurns: turns,
-                      child: AppIconButton(
-                        key: const ValueKey('edit-camera-note'),
-                        icon: Icons.edit_note_rounded,
-                        size: 40,
-                        color: AppColors.amberAccent,
-                        tooltip: strings.text('Edit note', 'កែសម្រួលចំណាំ'),
-                        onPressed: camera.isCapturing ? null : _editNote,
-                      ),
+                    const SizedBox(width: 12),
+                    _CameraToolbarButton(
+                      key: const ValueKey('edit-camera-note'),
+                      icon: Icons.edit_note_rounded,
+                      label: strings.text('Edit note', 'កែសម្រួលចំណាំ'),
+                      uiTurns: uiTurns,
+                      onPressed: camera.isCapturing ? null : _editNote,
                     ),
                   ],
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  child: _showZoom && camera.maxZoom > camera.minZoom
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 320),
+                            child: GlassPanel(
+                              radius: 16,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              backgroundColor: Colors.black.withValues(
+                                alpha: .45,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Slider(
+                                      key: const ValueKey('camera-zoom-slider'),
+                                      min: camera.minZoom,
+                                      max: camera.maxZoom,
+                                      value: camera.currentZoom.clamp(
+                                        camera.minZoom,
+                                        camera.maxZoom,
+                                      ),
+                                      activeColor: AppColors.amberAccent,
+                                      inactiveColor: Colors.white24,
+                                      semanticFormatterCallback: (value) =>
+                                          '${value.toStringAsFixed(1)}×',
+                                      onChanged: canZoom
+                                          ? (value) =>
+                                                _animateZoom(camera, value)
+                                          : null,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 48,
+                                    child: Center(
+                                      child: RotatedBox(
+                                        quarterTurns: turns,
+                                        child: Text(
+                                          '${camera.currentZoom.toStringAsFixed(1)}×',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
                 const Spacer(),
                 KeyedSubtree(
@@ -452,44 +529,48 @@ class _RatioSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Keep the controls in their rail and rotate each label within its button.
-    return FittedBox(
-      fit: BoxFit.scaleDown,
+    return SizedBox(
+      height: 48,
       child: GlassPanel(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        radius: 20,
+        padding: const EdgeInsets.all(4),
+        radius: 16,
         backgroundColor: Colors.black.withValues(alpha: 0.45),
-        borderColor: Colors.white.withValues(alpha: 0.12),
+        borderColor: Colors.white.withValues(alpha: 0.18),
+        boxShadow: const [],
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final ratio in CameraRatio.values)
-              GestureDetector(
-                onTap: () => onChanged(ratio),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    color: ratio == selected
-                        ? Colors.white.withValues(alpha: 0.18)
-                        : Colors.transparent,
-                  ),
-                  child: RotatedBox(
-                    quarterTurns: (uiTurns * 4).round(),
-                    child: Text(
-                      ratio.label,
-                      style: TextStyle(
-                        color: ratio == selected
-                            ? AppColors.primaryLight
-                            : Colors.white70,
-                        fontSize: 12,
-                        fontWeight: ratio == selected
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                        letterSpacing: 0.3,
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(ratio),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: ratio == selected
+                          ? Colors.white.withValues(alpha: .18)
+                          : Colors.transparent,
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: RotatedBox(
+                        quarterTurns: (uiTurns * 4).round(),
+                        child: Text(
+                          ratio.label,
+                          style: TextStyle(
+                            color: ratio == selected
+                                ? Colors.white
+                                : Colors.white70,
+                            fontSize: 12,
+                            fontWeight: ratio == selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -511,29 +592,15 @@ class _CameraPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = camera.controller;
     if (controller != null && controller.value.isInitialized) {
-      final previewSize = controller.value.previewSize!;
       final quarterTurns = switch (camera.deviceOrientation) {
         DeviceOrientation.landscapeLeft => 1,
         DeviceOrientation.landscapeRight => 3,
         DeviceOrientation.portraitDown => 2,
         DeviceOrientation.portraitUp => 0,
       };
-      final isLandscape = quarterTurns.isOdd;
-      return ClipRect(
-        child: RotatedBox(
-          quarterTurns: quarterTurns,
-          child: SizedBox.expand(
-            child: FittedBox(
-              fit: BoxFit.cover,
-              clipBehavior: Clip.hardEdge,
-              child: SizedBox(
-                width: isLandscape ? previewSize.width : previewSize.height,
-                height: isLandscape ? previewSize.height : previewSize.width,
-                child: CameraPreview(controller),
-              ),
-            ),
-          ),
-        ),
+      return OrientedCameraPreview(
+        controller: controller,
+        quarterTurns: quarterTurns,
       );
     }
     return Container(
@@ -851,86 +918,69 @@ class _DockAction extends StatelessWidget {
   );
 }
 
-class _GpsStatusBadge extends StatelessWidget {
-  const _GpsStatusBadge({
-    required this.hasGps,
-    required this.accuracy,
-    required this.quarterTurns,
+class _CameraToolbarButton extends StatelessWidget {
+  const _CameraToolbarButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.uiTurns,
+    required this.onPressed,
+    this.value,
+    this.selected = false,
+    this.expanded,
   });
 
-  final bool hasGps;
-  final double? accuracy;
-  final int quarterTurns;
+  final IconData icon;
+  final String label;
+  final String? value;
+  final double uiTurns;
+  final VoidCallback? onPressed;
+  final bool selected;
+  final bool? expanded;
 
   @override
-  Widget build(BuildContext context) {
-    final color = hasGps ? AppColors.success : AppColors.error;
-    final landscape = quarterTurns.isOdd;
-    // Rotate compact labels inside the badge, keeping the top bar compact.
-    return SizedBox(
-      height: 44,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
+  Widget build(BuildContext context) => Tooltip(
+    message: value == null ? label : '$label · $value',
+    child: Semantics(
+      button: true,
+      expanded: expanded,
+      enabled: onPressed != null,
+      label: label,
+      value: value,
+      child: SizedBox.square(
+        dimension: 48,
         child: GlassPanel(
-          key: const ValueKey('gps-status-badge'),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          radius: 20,
-          backgroundColor: Colors.black.withValues(alpha: 0.45),
-          borderColor: color.withValues(alpha: 0.4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.6),
-                      blurRadius: 6,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              RotatedBox(
-                quarterTurns: quarterTurns,
-                child: Text(
-                  hasGps
-                      ? (landscape ? 'GPS\nACTIVE' : 'GPS ACTIVE')
-                      : (landscape ? 'NO\nGPS' : 'NO GPS'),
-                  key: const ValueKey('gps-status-label'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: hasGps ? Colors.white : Colors.white70,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
+          radius: 16,
+          padding: EdgeInsets.zero,
+          backgroundColor: Colors.black.withValues(alpha: .45),
+          borderColor: selected
+              ? AppColors.amberAccent.withValues(alpha: .65)
+              : Colors.white.withValues(alpha: .18),
+          boxShadow: const [],
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: BorderRadius.circular(16),
+              child: Center(
+                child: AnimatedRotation(
+                  turns: uiTurns,
+                  duration: const Duration(milliseconds: 250),
+                  child: Icon(
+                    icon,
+                    size: 22,
+                    color: onPressed == null
+                        ? Colors.white38
+                        : selected
+                        ? AppColors.amberAccent
+                        : Colors.white,
                   ),
                 ),
               ),
-              if (hasGps && accuracy != null) ...[
-                const SizedBox(width: 8),
-                Container(width: 1, height: 10, color: Colors.white24),
-                const SizedBox(width: 8),
-                RotatedBox(
-                  quarterTurns: quarterTurns,
-                  child: Text(
-                    '±${accuracy!.toStringAsFixed(0)}m',
-                    style: const TextStyle(
-                      color: AppColors.cyanAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }

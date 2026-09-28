@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 
 import '../../../core/services/device_service.dart';
+import '../../../core/services/device_orientation_service.dart';
 import '../../../core/services/image_stamp_service.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/photo_storage_service.dart';
@@ -18,7 +20,27 @@ import '../../settings/providers/settings_provider.dart';
 import '../layout/camera_preview_layout.dart';
 
 class CameraProvider extends ChangeNotifier {
-  CameraProvider(this.settingsProvider);
+  CameraProvider(
+    this.settingsProvider, {
+    Stream<DeviceOrientation>? orientationStream,
+  }) {
+    final stream =
+        orientationStream ??
+        (Platform.isAndroid ? DeviceOrientationService.orientations : null);
+    _orientationSubscription = stream?.listen(
+      (orientation) {
+        _hasPhysicalOrientation = true;
+        if (orientation == deviceOrientation) return;
+        deviceOrientation = orientation;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        // Retain the camera plugin fallback on devices without a sensor.
+        _hasPhysicalOrientation = false;
+        _handleCameraValueChanged();
+      },
+    );
+  }
   final SettingsProvider settingsProvider;
   final storage = PhotoStorageService();
   final _location = LocationService();
@@ -26,6 +48,8 @@ class CameraProvider extends ChangeNotifier {
   final _stamper = ImageStampService();
   CameraController? controller;
   DeviceOrientation deviceOrientation = DeviceOrientation.portraitUp;
+  StreamSubscription<DeviceOrientation>? _orientationSubscription;
+  bool _hasPhysicalOrientation = false;
   LocationStamp location = const LocationStamp();
   String device = 'Loading device...';
   bool isLoading = true, isCapturing = false, flashVisible = false;
@@ -88,7 +112,9 @@ class CameraProvider extends ChangeNotifier {
           : ImageFormatGroup.yuv420,
     );
     await controller!.initialize();
-    deviceOrientation = controller!.value.deviceOrientation;
+    if (!_hasPhysicalOrientation) {
+      deviceOrientation = controller!.value.deviceOrientation;
+    }
     _minZoom = await controller!.getMinZoomLevel();
     _maxZoom = await controller!.getMaxZoomLevel();
     _currentZoom = 1.0.clamp(_minZoom, _maxZoom);
@@ -141,6 +167,7 @@ class CameraProvider extends ChangeNotifier {
   }
 
   void _handleCameraValueChanged() {
+    if (_hasPhysicalOrientation) return;
     final next = controller?.value.deviceOrientation;
     if (next == null || next == deviceOrientation) return;
     deviceOrientation = next;
@@ -179,8 +206,9 @@ class CameraProvider extends ChangeNotifier {
 
   Future<void> setZoom(double zoom) async {
     final activeController = controller;
-    if (activeController == null) return;
+    if (activeController == null || isCapturing) return;
     final target = zoom.clamp(_minZoom, _maxZoom);
+    if (target == _currentZoom) return;
     _currentZoom = target;
     notifyListeners();
     // Serialize hardware updates and skip values superseded by a slider drag.
@@ -215,11 +243,25 @@ class CameraProvider extends ChangeNotifier {
     final now = DateTime.now();
     notifyListeners();
     try {
+      // Finish the last requested lens adjustment before taking the photo.
+      await _zoomQueue;
       // Stop analysis for devices that cannot capture while streaming.
       if (activeController.value.isStreamingImages) {
         await activeController.stopImageStream();
       }
-      final raw = await activeController.takePicture();
+      // Android's display remains portrait, so explicitly set the photo target
+      // from the physical orientation frozen at shutter press.
+      final XFile raw;
+      if (Platform.isAndroid) {
+        await activeController.lockCaptureOrientation(captureOrientation);
+        try {
+          raw = await activeController.takePicture();
+        } finally {
+          await activeController.unlockCaptureOrientation();
+        }
+      } else {
+        raw = await activeController.takePicture();
+      }
       final destination = await storage.newPath();
       await _stamper.stamp(
         source: raw.path,
@@ -255,6 +297,7 @@ class CameraProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _orientationSubscription?.cancel();
     final activeController = controller;
     controller = null;
     activeController?.removeListener(_handleCameraValueChanged);
